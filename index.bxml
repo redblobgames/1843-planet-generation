@@ -1,0 +1,35 @@
+<x:document xmlns:x="http://local/" width="flex"
+            title="Planet generation">
+
+  <x:published>19 Oct 2018</x:published>
+  
+  <x:draft/>
+
+  <style>
+    body.widthflex section > figure { width: unset; max-width: unset; }
+  </style>
+  
+  <x:section>
+
+    <p>
+      I usually work with 2D map generation, in part because it's easier, but also in part because I enjoy 2D heightmap games more than 3D map games. For <a href="http://www.procjam.com/">ProcJam 2018</a> I decided to try working with spheres. <a href="CODEX.html">Notes here</a>.
+    </p>
+
+    <figure>
+      <canvas id="output" width="1024" height="1024"/>
+    </figure>
+    
+  </x:section>
+
+  <x:footer>
+    <script src="/js/regl.js"/>
+    <script src="https://unpkg.com/gl-matrix@2.7.0/dist/gl-matrix.js"/>
+    <script src="planet-generation.js"/>
+    
+    Created 19 Oct 2018; &#160;
+    <!-- hhmts start -->Last modified: 19 Oct 2018<!-- hhmts end -->
+  </x:footer>
+  
+  
+</x:document>
+
