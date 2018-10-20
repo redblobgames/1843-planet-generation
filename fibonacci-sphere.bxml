@@ -27,9 +27,13 @@
     </p>
     
     <figure>
-      <canvas id="output" width="1024" height="1024"/>
+      <canvas id="output" width="2048" height="2048"/>
     </figure>
 
+    <p>
+      @kinrany on Twitter <a href="https://twitter.com/kinrany/status/1053712598598856706">points out that Algorithm 2 breaks down when N is large</a>. This was because the original algorithm generates very large angles (such as 50k * π). My guess is that I was having float precision issues in my shaders. By wrapping it back to under 2π it fixed the problem.
+    </p>
+    
     <p>
       Want code?  Use View Source in your browser. It's all on this page. See the generateFibonacciSphere{1,2} functions. Graphics are rendered with <a href="http://regl.party">regl.js</a>, which makes it much easier for me to use WebGL than if I had tried using WebGL directly. I also use a little bit of <a href="http://glmatrix.net/">glMatrix</a>.
     </p>
@@ -63,6 +67,7 @@ uniform mat4 u_projection;
 uniform float u_pointsize;
 attribute vec2 a_latlong;
 varying vec2 v_uv;
+const vec4 reduce_z_to_avoid_clipping = vec4(1.0, 1.0, 0.5, 1.0);
 void main() {
   v_uv = vec2(a_latlong.r / 180.0 + 0.5, fract((a_latlong.g + 90.0) / 360.0));
   float lat = a_latlong.r / 180.0 * M_PI;
@@ -71,8 +76,9 @@ void main() {
                  vec4(cos(lat) * cos(lon),
                       cos(lat) * sin(lon),
                       sin(lat),
-                      1);
-  gl_PointSize = gl_Position.z > 0.0? 1.0 : u_pointsize;
+                      1) * 
+                reduce_z_to_avoid_clipping;
+  gl_PointSize = gl_Position.z > 0.0? 0.0 : u_pointsize;
 }
 `,
 
@@ -103,7 +109,7 @@ function generateFibonacciSphere1(N, jitter) {
         if (randomLon[k] === undefined) randomLon[k] = Math.random() - Math.random();
         latDeg += jitter * randomLat[k] * (latDeg - Math.asin(Math.max(-1, z - dz * 2 * Math.PI * r / s)) * 180 / Math.PI);
         lonDeg += jitter * randomLon[k] * (s/r * 180 / Math.PI);
-        a_latlong.push(latDeg, lonDeg);
+        a_latlong.push(latDeg, lonDeg % 360.0);
         long += s/r;
     }
     return a_latlong;
@@ -125,7 +131,7 @@ function generateFibonacciSphere2(N, jitter) {
         if (randomLon[k] === undefined) randomLon[k] = Math.random() - Math.random();
         latDeg += jitter * randomLat[k] * (latDeg - Math.asin(Math.max(-1, z - dz * 2 * Math.PI * r / s)) * 180 / Math.PI);
         lonDeg += jitter * randomLon[k] * (s/r * 180 / Math.PI);
-        a_latlong.push(latDeg, lonDeg);
+        a_latlong.push(latDeg, lonDeg % 360.0);
         long += dlong;
     }
     return a_latlong;
@@ -142,7 +148,7 @@ let algorithm = 1;
       
 function draw() {
     let u_projection = mat4.fromRotation([], rotation, [1, 0.5, 0]);
-    let u_pointsize = 0.5 + 500 / Math.sqrt(N);
+    let u_pointsize = 1 + 500 / Math.sqrt(N);
     let a_latlong = generateFibonacciSphere(N, jitter);
     render({
         u_projection,
