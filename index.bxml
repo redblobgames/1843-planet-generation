@@ -6,13 +6,14 @@
   <x:draft/>
 
   <style>
-    body.widthflex section > figure { width: unset; max-width: unset; }
+      body.widthflex section > figure { width: unset; max-width: unset; }
+      canvas { max-width: 90vmin; }
   </style>
   
   <x:section>
 
     <p>
-      I usually work with 2D map generation, in part because it's easier, but also in part because I enjoy 2D heightmap games more than 3D map games. For <a href="http://www.procjam.com/">ProcJam 2018</a> I decided to try working with spheres. <a href="CODEX.html">Notes here</a>.
+      I usually work with 2D map generation, in part because it's easier, but also in part because I enjoy 2D heightmap games more than 3D map games. For <a href="http://www.procjam.com/">ProcJam 2018</a> I decided to try working with spheres. <a href="CODEX.html">Notes will go here</a>. Step 1: <a href="fibonacci-sphere.html">Fibonacci Sphere</a>.
     </p>
 
     <figure>
