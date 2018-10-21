@@ -237,6 +237,7 @@ function generateDelaunayGeometry(r_xyz, delaunay) {
 
 /* Calculate the centroid and push it onto an array */
 function pushCentroidOfTriangle(out, ax, ay, az, bx, by, bz, cx, cy, cz) {
+    // TODO: renormalize to radius 1
     out.push((ax+bx+cx)/3, (ay+by+cy)/3, (az+bz+cz)/3);
 }
 
@@ -258,6 +259,7 @@ function pushCircumcenterOfTriangle(out, ax, ay, az, bx, by, bz, cx, cy, cz) {
                                           1 / (2 * vec3.squaredLength(abXac))
                                          ),
         circumcenter = vec3.add([], a, toCircumsphereCenter);
+    // TODO: renormalize to radius 1
     out.push(circumcenter[0], circumcenter[1], circumcenter[2]);
 }
 
