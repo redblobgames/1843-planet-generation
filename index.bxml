@@ -13,7 +13,7 @@
   <x:section>
 
     <p>
-      I usually work with 2D map generation, in part because it's easier, but also in part because I enjoy 2D heightmap games more than 3D map games. For <a href="http://www.procjam.com/">ProcJam 2018</a> I decided to try working with spheres. <a href="CODEX.html">Notes will go here</a>. Step 1: <a href="fibonacci-sphere.html">Fibonacci Sphere</a>.
+      I usually work with 2D map generation, in part because it's easier, but also in part because I enjoy 2D heightmap games more than 3D map games. For <a href="http://www.procjam.com/">ProcJam 2018</a> I decided to try working with spheres. <a href="CODEX.html">Notes will go here</a>. Step 1: <a href="fibonacci-sphere.html">Fibonacci Sphere</a>. Step 2: Delaunay on the sphere:
     </p>
 
     <p>
@@ -21,11 +21,11 @@
       <button onclick="setAlgorithm(2)">Algorithm 2</button>
       <br/>
       Number of points on sphere:
-      <input type="range" min="1" max="5" step="0.001" value="4" oninput="setN(Math.pow(10, this.valueAsNumber) | 0)" style="width:50ex"/>
+      <input type="range" min="1" max="5" step="0.001" value="3" oninput="setN(Math.pow(10, this.valueAsNumber) | 0)" style="width:50ex"/>
       <br/>
       Jitter: <input type="range" min="0" max="1" step="0.001" value="0" oninput="setJitter(this.valueAsNumber)" style="width:50ex"/>
       <br/>
-      Sphere rotation: <input type="range" min="-5" max="5" step="0.001" value="0" oninput="setRotation(this.valueAsNumber)" style="width:50ex"/>
+      Sphere rotation: <input type="range" min="-5" max="5" step="0.001" value="-1.5" oninput="setRotation(this.valueAsNumber)" style="width:50ex"/>
     </p>
     
     <figure>

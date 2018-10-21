@@ -5,7 +5,7 @@
  */
 'use strict';
 
-/* global Delaunator, createREGL, mat4 */
+/* global Delaunator, createREGL, vec3, mat4 */
 
 const regl = createREGL({
     canvas: "#output",
@@ -37,7 +37,6 @@ void main() {
                       cos(lat) * sin(lon),
                       sin(lat),
                       1);
-  // gl_Position = vec4(v_uv * 2.0 - 1.0, 0, 1);
   gl_PointSize = gl_Position.z > 0.0? 1.0 : u_pointsize;
 }
 `,
@@ -62,7 +61,6 @@ void main() {
 const renderTriangles = regl({
     frag: `
 precision mediump float;
-varying vec2 v_uv;
 varying vec3 v_rgb;
 void main() {
    gl_FragColor = vec4(v_rgb, 1);
@@ -70,24 +68,14 @@ void main() {
 `,
 
     vert: `
-#define M_PI 3.1415926535897932384626433832795
 precision highp float;
 uniform mat4 u_projection;
-attribute vec2 a_latlong;
+attribute vec3 a_xyz;
 attribute vec3 a_rgb;
-varying vec2 v_uv;
 varying vec3 v_rgb;
 void main() {
-  v_uv = vec2(a_latlong.r / 180.0 + 0.5, fract((a_latlong.g + 90.0) / 360.0));
-  v_rgb = a_rgb;
-  float lat = a_latlong.r / 180.0 * M_PI;
-  float lon = a_latlong.g / 180.0 * M_PI;
-  gl_Position = u_projection *
-                 vec4(cos(lat) * cos(lon),
-                      cos(lat) * sin(lon),
-                      sin(lat),
-                      1);
-  // gl_Position = vec4(v_uv * 2.0 - 1.0, 0, 1);
+  v_rgb = mix((a_xyz + 1.0) / 2.0 * vec3(1.5, 1.0, 1.3), a_rgb, 0.33);
+  gl_Position = u_projection * vec4(a_xyz, 1);
 }
 `,
 
@@ -97,7 +85,7 @@ void main() {
 
     count: regl.prop('count'),
     attributes: {
-        a_latlong: regl.prop('a_latlong'),
+        a_xyz: regl.prop('a_xyz'),
         a_rgb: regl.prop('a_rgb'),
     },
 });
@@ -145,28 +133,100 @@ function generateFibonacciSphere2(N, jitter) {
     return a_latlong;
 }
 
+
+/** Add south pole back into the mesh.
+ *
+ * We run the Delaunay Triangulation on all points *except* the south pole,
+ * which gets mapped to infinity with the stereographic projection. This
+ * function adds the south pole into the triangulation.
+ *
+ * Returns the new {triangles, halfedges} for the triangulation with
+ * one additional point added around the convex hull.
+ */
+function addSouthPoleToMesh(southPoleId, {triangles, halfedges}) {
+    // This logic is from <https://github.com/redblobgames/dual-mesh>,
+    // where I use it to insert a "ghost" region on the "back" side
+    // of the planar map. The same logic works here.
+    let numSides = triangles.length;
+    function s_next_s(s) { return (s % 3 == 2) ? s-2 : s+1; }
+
+    let numUnpairedSides = 0, firstUnpairedSide = -1;
+    let pointIdToSideId = []; // seed to side
+    for (let s = 0; s < numSides; s++) {
+        if (halfedges[s] === -1) {
+            numUnpairedSides++;
+            pointIdToSideId[triangles[s]] = s;
+            firstUnpairedSide = s;
+        }
+    }
+    
+    let newTriangles = new Int32Array(numSides + 3 * numUnpairedSides);
+    let newHalfedges = new Int32Array(numSides + 3 * numUnpairedSides);
+    newTriangles.set(triangles);
+    newHalfedges.set(halfedges);
+
+    for (let i = 0, s = firstUnpairedSide;
+         i < numUnpairedSides;
+         i++, s = pointIdToSideId[newTriangles[s_next_s(s)]]) {
+
+        // Construct a pair for the unpaired side s
+        let newSide = numSides + 3 * i;
+        newHalfedges[s] = newSide;
+        newHalfedges[newSide] = s;
+        newTriangles[newSide] = newTriangles[s_next_s(s)];
+        
+        // Construct a triangle connecting the new side to the south pole
+        newTriangles[newSide + 1] = newTriangles[s];
+        newTriangles[newSide + 2] = southPoleId;
+        let k = numSides + (3 * i + 4) % (3 * numUnpairedSides);
+        newHalfedges[newSide + 2] = k;
+        newHalfedges[k] = newSide + 2;
+    }
+
+    return {
+        triangles: newTriangles,
+        halfedges: newHalfedges,
+    };
+}
+
+
+/* Pick some pastel colors per index and cache them.
+ * Not all operations will benefit from this, but some
+ * (like rotation) do, so might as well cache. */
 let _randomColor = [];
-function randomColor(t) {
-    if (!_randomColor[t]) {
-        _randomColor[t] = [
+function randomColor(index) {
+    if (!_randomColor[index]) {
+        _randomColor[index] = [
             0.5 + Math.random() * 0.5,
             0.6 + Math.random() * 0.3,
             0.5 + Math.random() * 0.5,
         ];
     }
-    return _randomColor[t];
+    return _randomColor[index];
 }
 
-function generateTriangleGeometry(latlong, delaunay) {
+/* calculate x,y,z from spherical coordinates lat,lon and then push
+ * them onto out array; for one-offs pass [] as the first argument */
+function pushCartesianFromSpherical(out, latDeg, lonDeg) {
+    let latRad = latDeg / 180.0 * Math.PI,
+        lonRad = lonDeg / 180.0 * Math.PI;
+    out.push(Math.cos(latRad) * Math.cos(lonRad),
+             Math.cos(latRad) * Math.sin(lonRad),
+             Math.sin(latRad));
+    return out;
+}
+
+
+function generateDelaunayGeometry(latlong, delaunay) {
     let {triangles} = delaunay;
     let numTriangles = triangles.length / 3;
     let geometry = [], colors = [];
     for (let t = 0; t < numTriangles; t++) {
         let a = triangles[3*t], b = triangles[3*t+1], c = triangles[3*t+2];
-        let rgb = randomColor(t);
-        geometry.push(latlong[2*a], latlong[2*a+1],
-                      latlong[2*b], latlong[2*b+1],
-                      latlong[2*c], latlong[2*c+1]);
+        let rgb = randomColor(a+b+c);
+        pushCartesianFromSpherical(geometry, latlong[2*a], latlong[2*a+1]);
+        pushCartesianFromSpherical(geometry, latlong[2*b], latlong[2*b+1]);
+        pushCartesianFromSpherical(geometry, latlong[2*c], latlong[2*c+1]);
         colors.push(rgb, rgb, rgb);
     }
     return {geometry, colors};
@@ -197,7 +257,7 @@ function generateFibonacciSphere(N, jitter) {
       
 let N = 1000;
 let jitter = 0.0;
-let rotation = 0.8;
+let rotation = -1.5;
 
 function setAlgorithm(newAlgorithm) { algorithm = newAlgorithm; draw(); }
 function setN(newN) { N = newN; draw(); }
@@ -205,18 +265,29 @@ function setJitter(newJitter) { jitter = newJitter; draw(); }
 function setRotation(newRotation) { rotation = newRotation; draw(); }
 
 function draw() {
-    let u_projection = mat4.fromRotation([], rotation, [1, 0.5, 0]);
     let u_pointsize = 0.1 + 100 / Math.sqrt(N);
+    let u_projection = mat4.create();
+    mat4.scale(u_projection, u_projection, [1, 1, 0.5, 1]); // avoid clipping
+    mat4.rotate(u_projection, u_projection, -rotation, [1, 0.5, 0]);
+    
     let a_latlong = generateFibonacciSphere(N, jitter);
     let delaunay = new Delaunator(stereographicProjection(a_latlong));
 
-    let triangleGeometry = generateTriangleGeometry(a_latlong, delaunay);
+    /* TODO: Better approach would be to rotate the sphere so that
+       a_latlong[N-1] is at the south pole, then run Delaunator on
+       everything except that point, then stitch that point back into
+       the mesh. However, for now I'm adding a new point into the mesh
+       at the south pole and hoping there's nothing there. */
+    a_latlong.push(90, 0);
+    delaunay = addSouthPoleToMesh(a_latlong.length/2 - 1, delaunay);
+    
+    let triangleGeometry = generateDelaunayGeometry(a_latlong, delaunay);
 
     renderTriangles({
         u_projection,
-        a_latlong: triangleGeometry.geometry,
+        a_xyz: triangleGeometry.geometry,
         a_rgb: triangleGeometry.colors,
-        count: triangleGeometry.geometry.length / 2,
+        count: triangleGeometry.geometry.length / 3,
     });
     renderPoints({
         u_projection,
@@ -224,7 +295,6 @@ function draw() {
         a_latlong,
         count: a_latlong.length / 2,
     });
-
 }
 
 draw();
