@@ -5,9 +5,9 @@
  */
 'use strict';
 
-/* global Delaunator, createREGL, vec3, mat4 */
-
-const regl = createREGL({
+const Delaunator = require('delaunator');
+const {vec3, mat4} = require('gl-matrix');
+const regl = require('regl')({
     canvas: "#output",
     extensions: ['OES_element_index_uint']
 });
@@ -326,11 +326,11 @@ let jitter = 0.0;
 let rotation = -4;
 let drawMode = 'points';
 
-function setAlgorithm(newAlgorithm) { algorithm = newAlgorithm; draw(); }
-function setN(newN) { N = newN; draw(); }
-function setJitter(newJitter) { jitter = newJitter; draw(); }
-function setRotation(newRotation) { rotation = newRotation; draw(); }
-function setDrawMode(newMode) { drawMode = newMode; draw(); }
+window.setAlgorithm = newAlgorithm => { algorithm = newAlgorithm; draw(); };
+window.setN = newN => { N = newN; draw(); };
+window.setJitter = newJitter => { jitter = newJitter; draw(); };
+window.setRotation = newRotation => { rotation = newRotation; draw(); };
+window.setDrawMode = newMode => { drawMode = newMode; draw(); };
 
 function draw() {
     let u_pointsize = (drawMode === 'points'? 5 : 1) * (0.1 + 100 / Math.sqrt(N));

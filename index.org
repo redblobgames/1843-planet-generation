@@ -1,5 +1,5 @@
-#+title: Delaunay+Voronoi on a sphere
-#+date: <2018-10-19>
+#+title: Procedural map generation on a sphere
+#+date: <2018-10-21>
 
 #+begin_export html
   <style>
@@ -7,103 +7,7 @@
   </style>
 #+end_export
   
-I usually work with 2D map generation, in part because it's easier, but also in part because I enjoy 2D heightmap games more than 3D map games. I've wanted to learn how to work with spheres so that I could make maps of entire planets, like I saw in [[http://experilous.com/1/blog/post/procedural-planet-generation][this project]] and [[https://github.com/vraid/earthgen-old#seasonal-variation][this project]]. I decided [[http://www.procjam.com/][ProcJam 2018]] would be a good time to learn this.
-
-There's an [[./#demo][interactive demo at the end]].
-
-** Points
-   :PROPERTIES:
-   :CUSTOM_ID: points
-   :END:
-   
-The first step for a Voronoi Planet is to pick the points. I would like evenly spaced points to start with, and then I can add some jitter to make them less even. The standard approach is to use a subdivided icosahedron:
-
-#+begin_export html
-<figure>
-<a href="https://en.wikipedia.org/wiki/File:Geodesic_icosahedral_polyhedron_example.png"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/Geodesic_icosahedral_polyhedron_example.png/1280px-Geodesic_icosahedral_polyhedron_example.png"/></a>
-<figcaption>Subdivided Isocahedron (Wikipedia)</figcaption>
-</figure>
-#+end_export
-
-I'm using a Fibonacci Sphere instead. There are two algorithms listed on [[http://web.archive.org/web/20120421191837/http://www.cgafaq.info/wiki/Evenly_distributed_points_on_sphere][this archived wiki page]], which was linked [[http://stackoverflow.com/questions/9600801/evenly-distributing-n-points-on-a-sphere][from stackoverflow]]. The layouts of the points are slightly different:
-
-#+begin_export html
-<figure>
-  <img src="blog/points-1.png" style="width:45%;margin:5px"/>
-  <img src="blog/points-2.png" style="width:45%;margin:5px"/>
-  <figcaption>Two algorithms for generating points</figcaption>
-</figure>
-#+end_export
-
-Although these look pretty nice, there's a downside: the patterns at the poles /is different/ than the pattern elsewhere. I think a subdivided icosahedron wouldn't have this problem.
-
-*I'm doing all of this for the 9-day ProcJam*, so I'm trying to reuse any existing code I have. This means I'll sometimes make suboptimal decisions. I have existing map code that works with Delaunay+Voronoi but I don't have existing code for a subdivided icosahedron so I'm trying to make something that works with Delaunay+Voronoi on a sphere, even if other techniques might be better.
-
-** Delaunay Triangulation
-   :PROPERTIES:
-   :CUSTOM_ID: delaunay
-   :END:
-   
-The second step is to construct a Delaunay Triangulation on these points on a sphere. A standard Delaunay library works on points in a 2D plane. Surprisingly, we can use existing 2D Delaunay libraries to run on points on a sphere. The key idea is to /transform the data/ before running the algorithm.
-
-1. /Project/ the points from the sphere onto an infinite plane using a [[https://en.wikipedia.org/wiki/Stereographic_projection][stereographic projection]]. This maps the northern hemisphere onto points inside the unit circle, and the southern hemisphere onto points outside the unit circle.
-2. Run the unmodified Delaunay triangulation library on the points on the infinite plane. This general idea is useful — instead of modifying an algorithm, you can often modify the input data, run an unmodified algorithm, and then modify the output data.
-3. Wrap the results from the infinite plane back onto the sphere.
-
-*There will be a hole left over*. The outer boundary of the Delaunay Triangulation is the /convex hull/ of those points. That convex hull ends up wrapping into a small polygon near the south pole of the sphere. See [[https://twitter.com/redblobgames/status/1053880998658633729][this animation I made]] (also available in [[./blog/delaunay-folded-sphere.gif][animated GIF]] and [[./blog/delaunay-folded-sphere.mov][Quicktime movie]] formats).
-
-We need to stitch this hole back together. It turns out I already do this kind of wrapping for my [[https://redblobgames.github.io/dual-mesh/][dual-mesh]] library, for different reasons, and I adapted that code to work here. The best way to do this is:
-
-1. Rotate all the points so that the /last/ point in the array is on the south pole. ([[https://math.stackexchange.com/questions/180418/calculate-rotation-matrix-to-align-vector-a-to-vector-b-in-3d][see stackoverflow]] for math details)
-2. Run Delaunay /without/ that point, because the stereographic projection will project that point out to infinity.
-3. Stitch that point back in: for each /half-edge/ on the convex hull, construct a triangle that connects the two points in that half-edge to the chosen south pole point. If there are N half-edges on the hull, this will produce N new triangles and 3N new half-edges.
-
-However, rotating the points is not strictly necessary. I decided to run on the unrotated sphere, and add a new point at the south pole instead of using an existing one. It's Good Enough For Now. I'm thinking that I'll have half a million regions for my map generator, so one extra region at the pole won't be noticeable. That said, the sphere rotate approach doesn't look that hard, so I should probably implement it at some point.
-
-Here's the resulting Delaunay Triangulation:
-
-#+begin_export html
-<figure>
-  <img src="blog/fibonacci-sphere-delaunay.png"/>
-  <figcaption>Delaunay Triangulation on the sphere</figcaption>
-</figure>
-#+end_export
-
-Note: there's a library that does all of this for you! See [[https://github.com/Fil/d3-geo-voronoi/][d3-geo-voronoi]]. I didn't end up using it because my mapgen4 code runs on the data structures from Delaunator, and it was going to be more work to adapt it to use d3-geo-voronoi than to implement the projection and stitching myself. The projection is around 10 lines of code, and the stitching I already had implemented. My stitching approach seems to be a little different from d3-geo-voronoi's; he adds four infinity points and I don't add any. His is probably more robust.
-
-** Voronoi Regions
-   :PROPERTIES:
-   :CUSTOM_ID: voronoi
-   :END:
-
-Once we have the Delaunay Triangulation on a sphere, we need the Voronoi regions. This is fairly simple. The Voronoi regions are formed by connecting all the triangle /circumcenters/ for the triangles touching one of the input points.
-
-But how do you computer a circumcenter for a triangle on a sphere? I found a solution [[https://gamedev.stackexchange.com/questions/60630/how-do-i-find-the-circumcenter-of-a-triangle-in-3d][on stackoverflow]] and implemented it.
-
-The circumcenters all end up slightly inside the sphere. It'd probably be slightly better if the circumcenter was moved to the surface of the sphere. To do this, take (x, y, z) of the circumcenter, calculate the distance d = sqrt(x² + y² + z²), then move the circumcenter to (x/d, y/d, z/d).
-
-#+begin_export html
-<figure>
-  <img src="blog/fibonacci-sphere-voronoi.png"/>
-  <figcaption>Voronoi regions on the sphere</figcaption>
-</figure>
-#+end_export
-
-For most of my Voronoi map generation projects, I don't actually use Voronoi, but something similar. I move the points from the circumcenters to the centroids. Not only is this cheaper to calculate, it ensures that all the region edges have a reasonable length. With Voronoi, some of the edges have small or zero length, and that makes it harder for me to place roads and rivers using those edges. I have written more about this topic [[https://www.redblobgames.com/x/1721-voronoi-alternative/][here]].
-
-#+begin_export html
-<figure>
-  <img src="blog/fibonacci-sphere-centroids.png"/>
-  <figcaption>Centroids instead of circumcenters</figcaption>
-</figure>
-#+end_export
-
-** Demo
-   :PROPERTIES:
-   :CUSTOM_ID: demo
-   :END:
-
-The demo was a lot of fun to play with. It's a little slow when you increase the number of points to the maximum (100,000).
+For [[http://www.procjam.com/][ProcJam 2018]] I decided to learn how to generate maps on a sphere, so that I could procedurally generate planets. See [[../1842-delaunay-voronoi-sphere/][part 1]], where I place points on a sphere, work with sphere geometry, build a Delaunay triangulation on a sphere, and build Voronoi regions on a sphere.
   
 #+begin_export html
    <p> 
@@ -130,30 +34,13 @@ The demo was a lot of fun to play with. It's a little slow when you increase the
     </figure>
 #+end_export
 
-Slightly messy source code is [[./planet-generation.js][here]].
-
-** More
-   :PROPERTIES:
-   :CUSTOM_ID: more
-   :END:
-   
-Delaunay and Voronoi are calculated with [[https://github.com/mapbox/delaunator][Delaunator]]. Graphics are rendered with [[http://regl.party][regl.js]], which makes it much easier for me to use WebGL than if I had tried using WebGL directly. I also use a little bit of [[http://glmatrix.net/][glMatrix]].
-    
-- For point selection, also see [[https://beta.observablehq.com/@mbostock/spherical-fibonacci-lattice][Mike Bostock's version]], based on [[http://extremelearning.com.au/evenly-distributing-points-on-a-sphere/][this wonderful article]], which proposes an improvement over the Fibonacci approach. I haven't implemented it.
-- [[https://bl.ocks.org/mbostock/3757137][D3's stereographic projection]] shows what the projection looks like; note that they cleverly place the "infinity" point in the middle of the Pacific Ocean, so that no land gets the infinite distortion.
-- http://otfried.org/Papers/2001-47.pdf - paper describing Delaunay on spheres
-- http://www.cis.upenn.edu/~cis610/convex8.pdf (section 8.5) - also describing Delaunay on spheres
-
-*I'm doing all of this for the 9-day ProcJam, so I'm intentionally /not/ making it perfect, but instead stopping at "good enough".*
 
 #+begin_export html
   <x:footer>
-    <script src="/js/regl.js"/>
     <script src="https://unpkg.com/delaunator@3.0.2/delaunator.js"/>
-    <script src="https://unpkg.com/gl-matrix@2.7.0/dist/gl-matrix.js"/>
-    <script src="planet-generation.js"/>
+    <script src="build/_bundle.js"/>
     
-    Created 19 Oct 2018; &#160;
+    Created 21 Oct 2018; &#160;
     <!-- hhmts start -->Last modified: 21 Oct 2018<!-- hhmts end -->
   </x:footer>
 

@@ -1,0 +1,2 @@
+server:
+	yarn watch
