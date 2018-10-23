@@ -6,10 +6,22 @@
 'use strict';
 
 const Delaunator = require('delaunator');
+const SimplexNoise = require('simplex-noise');
+const colormap = require('../../maps/mapgen4/colormap');
 const {vec3, mat4} = require('gl-matrix');
+const {makeRandFloat} = require('@redblobgames/prng');
+
 const regl = require('regl')({
     canvas: "#output",
     extensions: ['OES_element_index_uint']
+});
+
+const u_colormap = regl.texture({
+    width: colormap.width,
+    height: colormap.height,
+    data: colormap.data,
+    wrapS: 'clamp',
+    wrapT: 'clamp'
 });
 
 const renderPoints = regl({
@@ -56,9 +68,10 @@ void main() {
 const renderTriangles = regl({
     frag: `
 precision mediump float;
+uniform sampler2D u_colormap;
 varying vec3 v_rgb;
 void main() {
-   gl_FragColor = vec4(v_rgb, 1);
+   gl_FragColor = texture2D(u_colormap, v_rgb.xy);
 }
 `,
 
@@ -69,12 +82,13 @@ attribute vec3 a_xyz;
 attribute vec3 a_rgb;
 varying vec3 v_rgb;
 void main() {
-  v_rgb = mix((a_xyz + 1.0) / 2.0 * vec3(1.5, 1.0, 1.3), a_rgb, 0.33);
+  v_rgb = a_rgb;
   gl_Position = u_projection * vec4(a_xyz, 1);
 }
 `,
 
     uniforms: {
+        u_colormap: u_colormap,
         u_projection: regl.prop('u_projection'),
     },
 
@@ -202,19 +216,30 @@ function addSouthPoleToMesh(southPoleId, {triangles, halfedges}) {
 }
 
 
-/* Pick some pastel colors per index and cache them.
- * Not all operations will benefit from this, but some
- * (like rotation) do, so might as well cache. */
-let _randomColor = [];
-function randomColor(index) {
-    if (!_randomColor[index]) {
-        _randomColor[index] = [
-            0.5 + Math.random() * 0.5,
-            0.6 + Math.random() * 0.3,
-            0.5 + Math.random() * 0.5,
-        ];
+let _randomNoise = new SimplexNoise(makeRandFloat(12345));
+const persistence = 2/3;
+const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
+
+function fbm_noise(nx, ny, nz) {
+    let sum = 0, sumOfAmplitudes = 0;
+    for (let octave = 0; octave < amplitudes.length; octave++) {
+        let frequency = 1 << octave;
+        sum += amplitudes[octave] * _randomNoise.noise3D(nx * frequency, ny * frequency, nz * frequency);
+        sumOfAmplitudes += amplitudes[octave];
     }
-    return _randomColor[index];
+    return sum / sumOfAmplitudes;
+}
+
+function randomColor(r, r_xyz) {
+    let x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
+    let e = fbm_noise(x, y, z),
+        m = fbm_noise(3*x+5, 3*y+5, z+5) + 2.5 * (0.5 - Math.abs(z));
+    if (e > 0) e = e * e + 0.5 * Math.max(0, (Math.sqrt(Math.abs(z)) - 0.4));
+    return [
+        0.5 * (1 + e),
+        0.5 * (1 + m),
+        0,
+    ];
 }
 
 function generateDelaunayGeometry(r_xyz, delaunay) {
@@ -223,13 +248,14 @@ function generateDelaunayGeometry(r_xyz, delaunay) {
     let geometry = [], colors = [];
     for (let t = 0; t < numTriangles; t++) {
         let a = triangles[3*t], b = triangles[3*t+1], c = triangles[3*t+2];
-        let rgb = randomColor(a+b+c);
         geometry.push(
             r_xyz[3*a], r_xyz[3*a+1], r_xyz[3*a+2],
             r_xyz[3*b], r_xyz[3*b+1], r_xyz[3*b+2],
             r_xyz[3*c], r_xyz[3*c+1], r_xyz[3*c+2]
         );
-        colors.push(rgb, rgb, rgb);
+        colors.push(randomColor(a, r_xyz),
+                    randomColor(b, r_xyz),
+                    randomColor(c, r_xyz));
     }
     return {geometry, colors};
 }
@@ -290,7 +316,7 @@ function generateVoronoiGeometry(r_xyz, delaunay) {
         let inner_t = (s / 3) | 0,
             outer_t = (halfedges[s] / 3) | 0,
             begin_r = triangles[s];
-        let rgb = randomColor(begin_r);
+        let rgb = randomColor(begin_r, r_xyz);
         geometry.push(centers[3*inner_t], centers[3*inner_t+1], centers[3*inner_t+2],
                       centers[3*outer_t], centers[3*outer_t+1], centers[3*outer_t+2],
                       r_xyz[3*begin_r], r_xyz[3*begin_r+1], r_xyz[3*begin_r+2]);
@@ -321,10 +347,10 @@ function generateFibonacciSphere(N, jitter) {
     return [null, generateFibonacciSphere1, generateFibonacciSphere2][algorithm](N, jitter);
 }
 
-let N = 1000;
-let jitter = 0.0;
-let rotation = -4;
-let drawMode = 'points';
+let N = 10000;
+let jitter = 0.8;
+let rotation = -1.5;
+let drawMode = 'delaunay';
 
 window.setAlgorithm = newAlgorithm => { algorithm = newAlgorithm; draw(); };
 window.setN = newN => { N = newN; draw(); };
