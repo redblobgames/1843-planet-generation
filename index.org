@@ -29,7 +29,7 @@ For [[http://www.procjam.com/][ProcJam 2018]] I decided to learn how to generate
       Sphere rotation: <input type="range" min="-5" max="5" step="0.001" value="-4" oninput="setRotation(this.valueAsNumber)" style="width:50ex"/>
     </p>
     
-    <figure>
+    <figure style="background: black">
       <canvas id="output" width="1024" height="1024"/>
     </figure>
 #+end_export
@@ -37,11 +37,10 @@ For [[http://www.procjam.com/][ProcJam 2018]] I decided to learn how to generate
 
 #+begin_export html
   <x:footer>
-    <script src="https://unpkg.com/delaunator@3.0.2/delaunator.js"/>
     <script src="build/_bundle.js"/>
     
     Created 21 Oct 2018; &#160;
-    <!-- hhmts start -->Last modified: 21 Oct 2018<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 25 Oct 2018<!-- hhmts end -->
   </x:footer>
 
 #+end_export

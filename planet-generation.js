@@ -5,11 +5,13 @@
  */
 'use strict';
 
-const Delaunator = require('delaunator');
+const SEED = 123;
+
 const SimplexNoise = require('simplex-noise');
 const colormap = require('../../maps/mapgen4/colormap');
 const {vec3, mat4} = require('gl-matrix');
-const {makeRandFloat} = require('@redblobgames/prng');
+const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
+const SphereMesh = require('./sphere-mesh');
 
 const regl = require('regl')({
     canvas: "#output",
@@ -100,123 +102,7 @@ void main() {
 });
 
 
-let _randomLat = [], _randomLon = [];
-function generateFibonacciSphere1(N, jitter) {
-    let a_latlong = [];
-
-    // First algorithm from http://web.archive.org/web/20120421191837/http://www.cgafaq.info/wiki/Evenly_distributed_points_on_sphere
-    const s = 3.6/Math.sqrt(N);
-    const dz = 2.0/N;
-    for (let k = 0, long = 0, z = 1 - dz/2; k !== N; k++, z -= dz) {
-        let r = Math.sqrt(1-z*z);
-        let latDeg = Math.asin(z) * 180 / Math.PI;
-        let lonDeg = long * 180 / Math.PI;
-        if (_randomLat[k] === undefined) _randomLat[k] = Math.random() - Math.random();
-        if (_randomLon[k] === undefined) _randomLon[k] = Math.random() - Math.random();
-        latDeg += jitter * _randomLat[k] * (latDeg - Math.asin(Math.max(-1, z - dz * 2 * Math.PI * r / s)) * 180 / Math.PI);
-        lonDeg += jitter * _randomLon[k] * (s/r * 180 / Math.PI);
-        a_latlong.push(latDeg, lonDeg % 360.0);
-        long += s/r;
-    }
-    return a_latlong;
-}
-
-function generateFibonacciSphere2(N, jitter) {
-    let a_latlong = [];
-
-    // Second algorithm from http://web.archive.org/web/20120421191837/http://www.cgafaq.info/wiki/Evenly_distributed_points_on_sphere
-    const s = 3.6/Math.sqrt(N);
-    const dlong = Math.PI * (3-Math.sqrt(5));  /* ~2.39996323 */
-    const dz = 2.0 / N;
-    for (let k = 0, long = 0, z = 1 - dz/2; k !== N; k++, z -= dz) {
-        let r = Math.sqrt(1 - z*z);
-        let latDeg = Math.asin(z) * 180 / Math.PI;
-        let lonDeg = long * 180 / Math.PI;
-        if (_randomLat[k] === undefined) _randomLat[k] = Math.random() - Math.random();
-        if (_randomLon[k] === undefined) _randomLon[k] = Math.random() - Math.random();
-        latDeg += jitter * _randomLat[k] * (latDeg - Math.asin(Math.max(-1, z - dz * 2 * Math.PI * r / s)) * 180 / Math.PI);
-        lonDeg += jitter * _randomLon[k] * (s/r * 180 / Math.PI);
-        a_latlong.push(latDeg, lonDeg % 360.0);
-        long += dlong;
-    }
-    return a_latlong;
-}
-
-
-/* calculate x,y,z from spherical coordinates lat,lon and then push
- * them onto out array; for one-offs pass [] as the first argument */
-function pushCartesianFromSpherical(out, latDeg, lonDeg) {
-    let latRad = latDeg / 180.0 * Math.PI,
-        lonRad = lonDeg / 180.0 * Math.PI;
-    out.push(Math.cos(latRad) * Math.cos(lonRad),
-             Math.cos(latRad) * Math.sin(lonRad),
-             Math.sin(latRad));
-    return out;
-}
-
-
-
-/** Add south pole back into the mesh.
- *
- * We run the Delaunay Triangulation on all points *except* the south
- * pole, which gets mapped to infinity with the stereographic
- * projection. This function adds the south pole into the
- * triangulation. The Delaunator guide explains how the halfedges have
- * to be connected to make the mesh work.
- * <https://mapbox.github.io/delaunator/>
- *
- * Returns the new {triangles, halfedges} for the triangulation with
- * one additional point added around the convex hull.
- */
-function addSouthPoleToMesh(southPoleId, {triangles, halfedges}) {
-    // This logic is from <https://github.com/redblobgames/dual-mesh>,
-    // where I use it to insert a "ghost" region on the "back" side of
-    // the planar map. The same logic works here. In that code I use
-    // "s" for edges ("sides"), "r" for regions ("points"), t for triangles
-    let numSides = triangles.length;
-    function s_next_s(s) { return (s % 3 == 2) ? s-2 : s+1; }
-
-    let numUnpairedSides = 0, firstUnpairedSide = -1;
-    let pointIdToSideId = []; // seed to side
-    for (let s = 0; s < numSides; s++) {
-        if (halfedges[s] === -1) {
-            numUnpairedSides++;
-            pointIdToSideId[triangles[s]] = s;
-            firstUnpairedSide = s;
-        }
-    }
-    
-    let newTriangles = new Int32Array(numSides + 3 * numUnpairedSides);
-    let newHalfedges = new Int32Array(numSides + 3 * numUnpairedSides);
-    newTriangles.set(triangles);
-    newHalfedges.set(halfedges);
-
-    for (let i = 0, s = firstUnpairedSide;
-         i < numUnpairedSides;
-         i++, s = pointIdToSideId[newTriangles[s_next_s(s)]]) {
-
-        // Construct a pair for the unpaired side s
-        let newSide = numSides + 3 * i;
-        newHalfedges[s] = newSide;
-        newHalfedges[newSide] = s;
-        newTriangles[newSide] = newTriangles[s_next_s(s)];
-        
-        // Construct a triangle connecting the new side to the south pole
-        newTriangles[newSide + 1] = newTriangles[s];
-        newTriangles[newSide + 2] = southPoleId;
-        let k = numSides + (3 * i + 4) % (3 * numUnpairedSides);
-        newHalfedges[newSide + 2] = k;
-        newHalfedges[k] = newSide + 2;
-    }
-
-    return {
-        triangles: newTriangles,
-        halfedges: newHalfedges,
-    };
-}
-
-
-let _randomNoise = new SimplexNoise(makeRandFloat(12345));
+let _randomNoise = new SimplexNoise(makeRandFloat(SEED));
 const persistence = 2/3;
 const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
 
@@ -232,30 +118,29 @@ function fbm_noise(nx, ny, nz) {
 
 function randomColor(r, r_xyz) {
     let x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
-    let e = fbm_noise(x, y, z),
+    let e = fbm_noise(x, y, z) - 0.1,
         m = fbm_noise(3*x+5, 3*y+5, z+5) + 2.5 * (0.5 - Math.abs(z));
-    if (e > 0) e = e * e + 0.5 * Math.max(0, (Math.sqrt(Math.abs(z)) - 0.4));
+    if (e > 0) e = e * e + z*z*z*z;
     return [
         0.5 * (1 + e),
         0.5 * (1 + m),
-        0,
+        (r / 100) % 1.0,
     ];
 }
 
-function generateDelaunayGeometry(r_xyz, delaunay) {
-    let {triangles} = delaunay;
-    let numTriangles = triangles.length / 3;
+function generateDelaunayGeometry(r_xyz, r_color_fn, mesh) {
+    const {numTriangles} = mesh;
     let geometry = [], colors = [];
     for (let t = 0; t < numTriangles; t++) {
-        let a = triangles[3*t], b = triangles[3*t+1], c = triangles[3*t+2];
+        let a = mesh.s_begin_r(3*t), b = mesh.s_begin_r(3*t+1), c = mesh.s_begin_r(3*t+2);
         geometry.push(
             r_xyz[3*a], r_xyz[3*a+1], r_xyz[3*a+2],
             r_xyz[3*b], r_xyz[3*b+1], r_xyz[3*b+2],
             r_xyz[3*c], r_xyz[3*c+1], r_xyz[3*c+2]
         );
-        colors.push(randomColor(a, r_xyz),
-                    randomColor(b, r_xyz),
-                    randomColor(c, r_xyz));
+        colors.push(r_color_fn(a),
+                    r_color_fn(b),
+                    r_color_fn(c));
     }
     return {geometry, colors};
 }
@@ -295,17 +180,14 @@ function pushCenterOfTriangle(out, ax, ay, az, bx, by, bz, cx, cy, cz) {
     ((drawMode === 'centroid')? pushCentroidOfTriangle : pushCircumcenterOfTriangle)(out, ax, ay, az, bx, by, bz, cx, cy, cz);
 }
 
-function generateVoronoiGeometry(r_xyz, delaunay) {
-    let {triangles, halfedges} = delaunay;
-    let numPoints = r_xyz.length / 3,
-        numSides = triangles.length,
-        numTriangles = numSides / 3;
+function generateVoronoiGeometry(r_xyz, r_color_fn, mesh) {
+    const {numTriangles, numSides} = mesh;
     let centers = [];
     let geometry = [], colors = [];
 
     for (let t = 0; t < numTriangles; t++) {
-        let a = triangles[3*t], b = triangles[3*t+1], c = triangles[3*t+2];
         // TODO: flag for circumcenter vs centroid
+        let a = mesh.s_begin_r(3*t), b = mesh.s_begin_r(3*t+1), c = mesh.s_begin_r(3*t+2);
         pushCenterOfTriangle(centers,
                  r_xyz[3*a], r_xyz[3*a+1], r_xyz[3*a+2],
                  r_xyz[3*b], r_xyz[3*b+1], r_xyz[3*b+2],
@@ -313,10 +195,10 @@ function generateVoronoiGeometry(r_xyz, delaunay) {
     }
 
     for (let s = 0; s < numSides; s++) {
-        let inner_t = (s / 3) | 0,
-            outer_t = (halfedges[s] / 3) | 0,
-            begin_r = triangles[s];
-        let rgb = randomColor(begin_r, r_xyz);
+        let inner_t = mesh.s_inner_t(s),
+            outer_t = mesh.s_outer_t(s),
+            begin_r = mesh.s_begin_r(s);
+        let rgb = r_color_fn(begin_r);
         geometry.push(centers[3*inner_t], centers[3*inner_t+1], centers[3*inner_t+2],
                       centers[3*outer_t], centers[3*outer_t+1], centers[3*outer_t+2],
                       r_xyz[3*begin_r], r_xyz[3*begin_r+1], r_xyz[3*begin_r+2]);
@@ -326,31 +208,21 @@ function generateVoronoiGeometry(r_xyz, delaunay) {
 }
 
 
-function stereographicProjection(r_xyz) {
-    // See <https://en.wikipedia.org/wiki/Stereographic_projection>
-    const degToRad = Math.PI / 180;
-    let numPoints = r_xyz.length / 3;
-    let r_XY = [];
-    for (let r = 0; r < numPoints; r++) {
-        let x = r_xyz[3*r],
-            y = r_xyz[3*r + 1],
-            z = r_xyz[3*r + 2];
-        let X = x / (1-z),
-            Y = y / (1-z);
-        r_XY.push(X, Y);
+function pickRandomRegions(mesh, N, randInt) {
+    let {numRegions} = mesh;
+    let chosen_r = new Set();
+    while (chosen_r.size < N) {
+        chosen_r.add(randInt(numRegions));
     }
-    return r_XY;
+    return chosen_r;
 }
 
-let algorithm = 1;
-function generateFibonacciSphere(N, jitter) {
-    return [null, generateFibonacciSphere1, generateFibonacciSphere2][algorithm](N, jitter);
-}
 
-let N = 10000;
-let jitter = 0.8;
+let algorithm = 2;
+let N = 2000;
+let jitter = 0.5;
 let rotation = -1.5;
-let drawMode = 'delaunay';
+let drawMode = 'centroid';
 
 window.setAlgorithm = newAlgorithm => { algorithm = newAlgorithm; draw(); };
 window.setN = newN => { N = newN; draw(); };
@@ -362,22 +234,16 @@ function draw() {
     let u_pointsize = (drawMode === 'points'? 5 : 1) * (0.1 + 100 / Math.sqrt(N));
     let u_projection = mat4.create();
     mat4.scale(u_projection, u_projection, [1, 1, 0.5, 1]); // avoid clipping
-    mat4.rotate(u_projection, u_projection, -rotation, [1, 0.5, 0]);
+    mat4.rotate(u_projection, u_projection, -rotation, [0.1, 1, 0]);
+    mat4.rotate(u_projection, u_projection, -Math.PI/2+0.2, [1, 0, 0]);
     
-    let latlong = generateFibonacciSphere(N, jitter);
-    let r_xyz = [];
-    for (let r = 0; r < latlong.length/2; r++) {
-        pushCartesianFromSpherical(r_xyz, latlong[2*r], latlong[2*r+1]);
+    let {mesh, r_xyz} = SphereMesh.makeSphere(algorithm, N, jitter);
+    function r_color_fn(r) {
+        return randomColor(r_plate_r[r], r_xyz);
     }
 
-    let delaunay = new Delaunator(stereographicProjection(r_xyz));
-
-    /* TODO: rotate an existing point into this spot instead of creating one */
-    r_xyz.push(0, 0, 1);
-    delaunay = addSouthPoleToMesh(r_xyz.length/3 - 1, delaunay);
-
     if (drawMode === 'delaunay') {
-        let triangleGeometry = generateDelaunayGeometry(r_xyz, delaunay);
+        let triangleGeometry = generateDelaunayGeometry(r_xyz, r_color_fn, mesh);
         renderTriangles({
             u_projection,
             a_xyz: triangleGeometry.geometry,
@@ -385,7 +251,7 @@ function draw() {
             count: triangleGeometry.geometry.length / 3,
         });
     } else if (drawMode === 'voronoi' || drawMode === 'centroid') {
-        let triangleGeometry = generateVoronoiGeometry(r_xyz, delaunay);
+        let triangleGeometry = generateVoronoiGeometry(r_xyz, r_color_fn, mesh);
         renderTriangles({
             u_projection,
             a_xyz: triangleGeometry.geometry,
@@ -399,7 +265,7 @@ function draw() {
         u_pointsize,
         u_brightness: drawMode === 'points'? 1.0 : 0.0,
         a_xyz: r_xyz,
-        count: r_xyz.length / 3,
+        count: mesh.numRegions,
     });
 }
 
