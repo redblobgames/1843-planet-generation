@@ -2,12 +2,15 @@
  * From https://www.redblobgames.com/x/1843-planet-generation/
  * Copyright 2018 Red Blob Games <redblobgames@gmail.com>
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
+ *
+ * Adapting mapgen4 code for a sphere. Quick & dirty, for procjam2018
  */
 'use strict';
 
 const SEED = 123;
 
 const SimplexNoise = require('simplex-noise');
+const FlatQueue = require('flatqueue');
 const colormap = require('../../maps/mapgen4/colormap');
 const {vec3, mat4} = require('gl-matrix');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
@@ -15,7 +18,7 @@ const SphereMesh = require('./sphere-mesh');
 
 const regl = require('regl')({
     canvas: "#output",
-    extensions: ['OES_element_index_uint']
+    extensions: ['OES_element_index_uint', 'OES_standard_derivatives']
 });
 
 const u_colormap = regl.texture({
@@ -31,15 +34,18 @@ const u_colormap = regl.texture({
 let N = 10000;
 let P = 20;
 let jitter = 0.5;
-let rotation = -1.5;
-let drawMode = 'centroid';
+let rotation = -1;
+let drawMode = 'quads';
+let draw_plateVectors = false;
+let draw_plateBoundaries = false;
 
 window.setN = newN => { N = newN; generateMesh(); };
 window.setP = newP => { P = newP; generateMap(); };
 window.setJitter = newJitter => { jitter = newJitter; generateMesh(); };
 window.setRotation = newRotation => { rotation = newRotation; draw(); };
 window.setDrawMode = newMode => { drawMode = newMode; draw(); };
-
+window.setDrawPlateVectors = flag => { draw_plateVectors = flag; draw(); };
+window.setDrawPlateBoundaries = flag => { draw_plateBoundaries = flag; draw(); };
 
 const renderPoints = regl({
     frag: `
@@ -132,10 +138,10 @@ const renderTriangles = regl({
     frag: `
 precision mediump float;
 uniform sampler2D u_colormap;
-varying vec3 v_rgb;
+varying vec2 v_tm;
 void main() {
-   gl_FragColor = texture2D(u_colormap, v_rgb.xy);
-   // gl_FragColor = vec4(v_rgb, 1);
+   float e = v_tm.x > 0.0? 0.5 * (v_tm.x * v_tm.x + 1.0) : 0.5 * (v_tm.x + 1.0);
+   gl_FragColor = texture2D(u_colormap, vec2(e, v_tm.y));
 }
 `,
 
@@ -143,10 +149,10 @@ void main() {
 precision mediump float;
 uniform mat4 u_projection;
 attribute vec3 a_xyz;
-attribute vec3 a_rgb;
-varying vec3 v_rgb;
+attribute vec2 a_tm;
+varying vec2 v_tm;
 void main() {
-  v_rgb = a_rgb;
+  v_tm = a_tm;
   gl_Position = u_projection * vec4(a_xyz, 1);
 }
 `,
@@ -159,16 +165,73 @@ void main() {
     count: regl.prop('count'),
     attributes: {
         a_xyz: regl.prop('a_xyz'),
-        a_rgb: regl.prop('a_rgb'),
+        a_tm: regl.prop('a_tm'),
     },
 });
 
+
+const renderIndexedTriangles = regl({
+    frag: `
+#extension GL_OES_standard_derivatives : enable
+
+precision mediump float;
+
+uniform sampler2D u_colormap;
+uniform vec2 u_light_angle;
+uniform float u_inverse_texture_size, u_slope, u_flat, u_c, u_d;
+
+varying vec2 v_tm;
+void main() {
+   float e = v_tm.x > 0.0? 0.5 * (v_tm.x * v_tm.x + 1.0) : 0.5 * (v_tm.x + 1.0);
+   float dedx = dFdx(v_tm.x);
+   float dedy = dFdy(v_tm.x);
+   vec3 slope_vector = normalize(vec3(dedy, dedx, u_d * 2.0 * u_inverse_texture_size));
+   vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
+   float light = u_c + max(0.0, dot(light_vector, slope_vector));
+
+   gl_FragColor = vec4(texture2D(u_colormap, vec2(e, v_tm.y)).rgb * light, 1);
+}
+`,
+
+    vert: `
+precision mediump float;
+uniform mat4 u_projection;
+attribute vec3 a_xyz;
+attribute vec2 a_tm;
+varying vec2 v_tm;
+void main() {
+  v_tm = a_tm;
+  gl_Position = u_projection * vec4(a_xyz, 1);
+}
+`,
+
+    uniforms: {
+        u_colormap: u_colormap,
+        u_projection: regl.prop('u_projection'),
+        u_light_angle: [Math.cos(Math.PI/3), Math.sin(Math.PI/3)],
+        u_inverse_texture_size: 1.0 / 2048,
+        u_d: 60,
+        u_c: 0.15,
+        u_slope: 2,
+        u_flat: 2.5,
+    },
+
+    elements: regl.prop('elements'),
+    attributes: {
+        a_xyz: regl.prop('a_xyz'),
+        a_tm: regl.prop('a_tm'),
+    },
+});
+
+/**********************************************************************
+ * Geometry
+ */
 
 let _randomNoise = new SimplexNoise(makeRandFloat(SEED));
 const persistence = 2/3;
 const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
 
-function fbm_noise(nx, ny, nz) {
+function UNUSED_fbm_noise(nx, ny, nz) {
     let sum = 0, sumOfAmplitudes = 0;
     for (let octave = 0; octave < amplitudes.length; octave++) {
         let frequency = 1 << octave;
@@ -178,36 +241,6 @@ function fbm_noise(nx, ny, nz) {
     return sum / sumOfAmplitudes;
 }
 
-function randomColor(r, r_xyz) {
-    let x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
-    let e = fbm_noise(x, y, z) - 0.1,
-        m = fbm_noise(3*x+5, 3*y+5, z+5) + 2.5 * (0.5 - Math.abs(z));
-    if (e > 0) e = e * e + z*z*z*z;
-    return [
-        0.5 * (1 + e),
-        0.5 * (1 + m),
-        (r / 100) % 1.0,
-    ];
-}
-
-function generateDelaunayGeometry(r_xyz, r_color_fn, mesh) {
-    const {numTriangles} = mesh;
-    let geometry = [], colors = [];
-    for (let t = 0; t < numTriangles; t++) {
-        let a = mesh.s_begin_r(3*t), b = mesh.s_begin_r(3*t+1), c = mesh.s_begin_r(3*t+2);
-        geometry.push(
-            r_xyz[3*a], r_xyz[3*a+1], r_xyz[3*a+2],
-            r_xyz[3*b], r_xyz[3*b+1], r_xyz[3*b+2],
-            r_xyz[3*c], r_xyz[3*c+1], r_xyz[3*c+2]
-        );
-        colors.push(r_color_fn(a),
-                    r_color_fn(b),
-                    r_color_fn(c));
-    }
-    return {geometry, colors};
-}
-
-
 /* Calculate the centroid and push it onto an array */
 function pushCentroidOfTriangle(out, ax, ay, az, bx, by, bz, cx, cy, cz) {
     // TODO: renormalize to radius 1
@@ -215,36 +248,14 @@ function pushCentroidOfTriangle(out, ax, ay, az, bx, by, bz, cx, cy, cz) {
 }
 
 
-/* Calculate the circumenter and push it onto an array */
-function pushCircumcenterOfTriangle(out, ax, ay, az, bx, by, bz, cx, cy, cz) {
-    // https://gamedev.stackexchange.com/questions/60630/how-do-i-find-the-circumcenter-of-a-triangle-in-3d
-    let a = [ax, ay, az],
-        b = [bx, by, bz],
-        c = [cx, cy, cz],
-        ac = vec3.subtract([], c, a),
-        ab = vec3.subtract([], b, a),
-        abXac = vec3.cross([], ab, ac),
-        numerator = vec3.add([],
-                             vec3.scale([], vec3.cross([], abXac, ab), vec3.squaredLength(ac)),
-                             vec3.scale([], vec3.cross([], ac, abXac), vec3.squaredLength(ab))),
-        toCircumsphereCenter = vec3.scale([],
-                                          numerator,
-                                          1 / (2 * vec3.squaredLength(abXac))
-                                         ),
-        circumcenter = vec3.add([], a, toCircumsphereCenter);
-    // TODO: renormalize to radius 1
-    out.push(circumcenter[0], circumcenter[1], circumcenter[2]);
-}
-
-
-function generateTriangleCenters(mesh, r_xyz, pushCenter) {
+function generateTriangleCenters(mesh, {r_xyz}) {
     let {numTriangles} = mesh;
     let t_xyz = [];
     for (let t = 0; t < numTriangles; t++) {
         let a = mesh.s_begin_r(3*t),
             b = mesh.s_begin_r(3*t+1),
             c = mesh.s_begin_r(3*t+2);
-        pushCenter(t_xyz,
+        pushCentroidOfTriangle(t_xyz,
                  r_xyz[3*a], r_xyz[3*a+1], r_xyz[3*a+2],
                  r_xyz[3*b], r_xyz[3*b+1], r_xyz[3*b+2],
                  r_xyz[3*c], r_xyz[3*c+1], r_xyz[3*c+2]);
@@ -252,23 +263,88 @@ function generateTriangleCenters(mesh, r_xyz, pushCenter) {
     return t_xyz;
 }
 
-function generateVoronoiGeometry(mesh, r_xyz, t_xyz, r_color_fn) {
+function generateVoronoiGeometry(mesh, {r_xyz, t_xyz}, r_color_fn) {
     const {numSides} = mesh;
-    let geometry = [], colors = [];
+    let xyz = [], tm = [];
 
     for (let s = 0; s < numSides; s++) {
         let inner_t = mesh.s_inner_t(s),
             outer_t = mesh.s_outer_t(s),
             begin_r = mesh.s_begin_r(s);
         let rgb = r_color_fn(begin_r);
-        geometry.push(t_xyz[3*inner_t], t_xyz[3*inner_t+1], t_xyz[3*inner_t+2],
+        xyz.push(t_xyz[3*inner_t], t_xyz[3*inner_t+1], t_xyz[3*inner_t+2],
                       t_xyz[3*outer_t], t_xyz[3*outer_t+1], t_xyz[3*outer_t+2],
                       r_xyz[3*begin_r], r_xyz[3*begin_r+1], r_xyz[3*begin_r+2]);
-        colors.push(rgb, rgb, rgb);
+        tm.push(rgb, rgb, rgb);
     }
-    return {geometry, colors};
+    return {xyz, tm};
 }
 
+class QuadGeometry {
+    constructor () {
+        /* xyz = position in 3-space;
+           tm = temperature, moisture
+           I = indices for indexed drawing mode */
+    }
+
+    setMesh({numSides, numRegions, numTriangles}) {
+        this.I = new Int32Array(3 * numSides);
+        this.xyz = new Float32Array(3 * (numRegions + numTriangles));
+        this.tm = new Float32Array(2 * (numRegions + numTriangles));
+    }
+
+    setMap(mesh, {r_xyz, t_xyz, r_color_fn, s_flow, r_elevation, t_elevation, r_moisture, t_moisture}) {
+        const V = 0.95;
+        const {numSides, numRegions, numTriangles} = mesh;
+        const {xyz, tm, I} = this;
+
+        xyz.set(r_xyz);
+        xyz.set(t_xyz, r_xyz.length);
+        // TODO: multiply all the r, t points by the elevation, taking V into account
+
+        let p = 0;
+        for (let r = 0; r < numRegions; r++) {
+            tm[p++] = r_elevation[r];
+            tm[p++] = r_moisture[r];
+        }
+        for (let t = 0; t < numTriangles; t++) {
+            tm[p++] = t_elevation[t];
+            tm[p++] = t_moisture[t];
+        }
+
+        let i = 0, count_valley = 0, count_ridge = 0;
+        let {_halfedges, _triangles} = mesh;
+        for (let s = 0; s < numSides; s++) {
+            let opposite_s = mesh.s_opposite_s(s),
+                r1 = mesh.s_begin_r(s),
+                r2 = mesh.s_begin_r(opposite_s),
+                t1 = mesh.s_inner_t(s),
+                t2 = mesh.s_inner_t(opposite_s);
+            
+            // Each quadrilateral is turned into two triangles, so each
+            // half-edge gets turned into one. There are two ways to fold
+            // a quadrilateral. This is usually a nuisance but in this
+            // case it's a feature. See the explanation here
+            // https://www.redblobgames.com/x/1725-procedural-elevation/#rendering
+            let coast = r_elevation[r1] < 0.0 || r_elevation[r2] < 0.0;
+            if (coast || s_flow[s] > 0 || s_flow[opposite_s] > 0) {
+                // It's a coastal or river edge, forming a valley
+                I[i++] = r1; I[i++] = numRegions+t2; I[i++] = numRegions+t1;
+                count_valley++;
+            } else {
+                // It's a ridge
+                I[i++] = r1; I[i++] = r2; I[i++] = numRegions+t1;
+                count_ridge++;
+            }
+        }
+
+        console.log('ridge=', count_ridge, ', valley=', count_valley);
+    }
+}
+
+/**********************************************************************
+ * Plates
+ */
 
 function pickRandomRegions(mesh, N, randInt) {
     let {numRegions} = mesh;
@@ -379,7 +455,7 @@ function findCollisions(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
         if (best_r !== -1) {
             let collided = bestCollision > COLLISION_THRESHOLD * epsilon;
             if (plate_is_ocean.has(current_r) && plate_is_ocean.has(best_r)) {
-                (collided? ocean_r : ocean_r).add(current_r);
+                (collided? coastline_r : ocean_r).add(current_r);
             } else if (!plate_is_ocean.has(current_r) && !plate_is_ocean.has(best_r)) {
                 if (collided) mountain_r.add(current_r);
             } else {
@@ -391,10 +467,9 @@ function findCollisions(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
 }
 
 
-function assignElevation(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
+function assignRegionElevation(mesh, {r_xyz, plate_is_ocean, r_plate, plate_vec, /* out */ r_elevation}) {
     const epsilon = 1e-3;
     let {numRegions} = mesh;
-    let r_elevation = new Float32Array(numRegions);
 
     let {mountain_r, coastline_r, ocean_r} = findCollisions(
         mesh, r_xyz, plate_is_ocean, r_plate, plate_vec);
@@ -410,7 +485,7 @@ function assignElevation(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
     for (let r of coastline_r) { stop_r.add(r); }
     for (let r of ocean_r) { stop_r.add(r); }
 
-    console.log(mountain_r.size, coastline_r.size, ocean_r.size);
+    console.log('seeds mountain/coastline/ocean:', mountain_r.size, coastline_r.size, ocean_r.size, 'plate_is_ocean', plate_is_ocean.size,'/', P);
     let r_distance_a = assignDistanceField(mesh, mountain_r, ocean_r);
     let r_distance_b = assignDistanceField(mesh, ocean_r, coastline_r);
     let r_distance_c = assignDistanceField(mesh, coastline_r, stop_r);
@@ -425,71 +500,146 @@ function assignElevation(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
             r_elevation[r] = (1/a - 1/b) / (1/a + 1/b + 1/c);
         }
     }
-    return r_elevation;
 }
 
-var mesh, r_xyz, t_xyz, plate_r, r_plate, plate_vec, plate_is_ocean, r_elevation;
+
+
+/**********************************************************************
+ * Rivers - from mapgen4
+ */
+
+function assignTriangleValues(mesh, {r_elevation, r_moisture, /* out */ t_elevation, t_moisture}) {
+    const {numTriangles} = mesh;
+    for (let t = 0; t < numTriangles; t++) {
+        let s0 = 3*t;
+        let r1 = mesh.s_begin_r(s0),
+            r2 = mesh.s_begin_r(s0+1),
+            r3 = mesh.s_begin_r(s0+2);
+        t_elevation[t] = 1/3 * (r_elevation[r1] + r_elevation[r2] + r_elevation[r3]);
+        t_moisture[t] = 1/3 * (r_moisture[r1] + r_moisture[r2] + r_moisture[r3]);
+    }
+}
+
+
+let _queue = new FlatQueue();
+function assignDownflow(mesh, {t_elevation, /* out */ t_downflow_s, /* out */ order_t}) {
+    /* Use a priority queue, starting with the ocean triangles and
+     * moving upwards using elevation as the priority, to visit all
+     * the land triangles */
+    let {numTriangles} = mesh,
+        queue_in = 0;
+    t_downflow_s.fill(-999);
+    /* Part 1: ocean triangles get downslope assigned to the lowest neighbor */
+    for (let t = 0; t < numTriangles; t++) {
+        if (t_elevation[t] < 0) {
+            let best_s = -1, best_e = t_elevation[t];
+            for (let j = 0; j < 3; j++) {
+                let s = 3 * t + j,
+                    e = t_elevation[mesh.s_outer_t(s)];
+                if (e < best_e) {
+                    best_e = e;
+                    best_s = s;
+                }
+            }
+            order_t[queue_in++] = t;
+            t_downflow_s[t] = best_s;
+            _queue.push(t, t_elevation[t]);
+        }
+    }
+    /* Part 2: land triangles get visited in elevation priority */
+    for (let queue_out = 0; queue_out < numTriangles; queue_out++) {
+        let current_t = _queue.pop();
+        for (let j = 0; j < 3; j++) {
+            let s = 3 * current_t + j;
+            let neighbor_t = mesh.s_outer_t(s); // uphill from current_t
+            if (t_downflow_s[neighbor_t] === -999 && t_elevation[neighbor_t] >= 0.0) {
+                t_downflow_s[neighbor_t] = mesh.s_opposite_s(s);
+                order_t[queue_in++] = neighbor_t;
+                _queue.push(neighbor_t, t_elevation[neighbor_t]);
+            }
+        }
+    }
+}
+
+
+function assignFlow(mesh, {order_t, t_elevation, t_moisture, t_downflow_s, /* out */ t_flow, /* out */ s_flow}) {
+    let {numTriangles, _halfedges} = mesh;
+    s_flow.fill(0);
+    for (let t = 0; t < numTriangles; t++) {
+        if (t_elevation[t] >= 0.0) {
+            t_flow[t] = 0.5 * t_moisture[t] * t_moisture[t];
+        } else {
+            t_flow[t] = 0;
+        }
+    }
+    for (let i = order_t.length-1; i >= 0; i--) {
+        let tributary_t = order_t[i];
+        let flow_s = t_downflow_s[tributary_t];
+        let trunk_t = (_halfedges[flow_s] / 3) | 0;
+        if (flow_s >= 0) {
+            t_flow[trunk_t] += t_flow[tributary_t];
+            s_flow[flow_s] += t_flow[tributary_t]; // TODO: isn't s_flow[flow_s] === t_flow[?]
+            if (t_elevation[trunk_t] > t_elevation[tributary_t]) {
+                t_elevation[trunk_t] = t_elevation[tributary_t];
+            }
+        }
+    }
+}
+
+
+/**********************************************************************
+ * Main
+ */
+
+// ugh globals, sorry
+var mesh, map = {};
+var quadGeometry = new QuadGeometry();
 
 function generateMesh() {
-    let result = SphereMesh.makeSphere(N, jitter);
+    let result = SphereMesh.makeSphere(N, jitter, makeRandFloat(SEED));
     mesh = result.mesh;
-    r_xyz = result.r_xyz;
-    t_xyz = generateTriangleCenters(
-        mesh, r_xyz,
-        drawMode === 'centroid'? pushCentroidOfTriangle : pushCircumcenterOfTriangle
-    );
+    quadGeometry.setMesh(mesh);
+    
+    map.r_xyz = result.r_xyz;
+    map.t_xyz = generateTriangleCenters(mesh, map);
+    map.r_elevation = new Float32Array(mesh.numRegions);
+    map.t_elevation = new Float32Array(mesh.numTriangles);
+    map.r_moisture = new Float32Array(mesh.numRegions);
+    map.t_moisture = new Float32Array(mesh.numTriangles);
+    map.t_downflow_s = new Int32Array(mesh.numTriangles);
+    map.order_t = new Int32Array(mesh.numTriangles);
+    map.t_flow = new Float32Array(mesh.numTriangles);
+    map.s_flow = new Float32Array(mesh.numSides);
 
     generateMap();
 }
 
 function generateMap() {
-    let result = generatePlates(mesh, r_xyz);
-    plate_r = result.plate_r;
-    r_plate = result.r_plate;
-    plate_vec = result.plate_vec;
-    plate_is_ocean = new Set();
-    for (let r of plate_r) {
-        if (makeRandInt(r)(10) < 1) {
-            plate_is_ocean.add(r);
+    let result = generatePlates(mesh, map.r_xyz);
+    map.plate_r = result.plate_r;
+    map.r_plate = result.r_plate;
+    map.plate_vec = result.plate_vec;
+    map.plate_is_ocean = new Set();
+    for (let r of map.plate_r) {
+        if (makeRandInt(r)(10) < 7) {
+            map.plate_is_ocean.add(r);
         }
     }
-    r_elevation = assignElevation(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec);
+    assignRegionElevation(mesh, map);
+    // TODO: assign region moisture in a better way!
+    for (let r = 0; r < mesh.numRegions; r++) {
+        map.r_moisture[r] = (map.r_plate[r] % 10) / 10.0;
+    }
+    assignTriangleValues(mesh, map);
+    assignDownflow(mesh, map);
+    assignFlow(mesh, map);
 
+    quadGeometry.setMap(mesh, map);
     draw();
 }
 
-function draw() {
-    function r_color_fn(r) {
-        let color = randomColor(r_plate[r], r_xyz);
-        let e = r_elevation[r] - 0.2;
-        if (e > 0) e = e * e;
-        return [0.5 + 0.5 * e + 0.1 * (color[0] - 0.5), color[1], 1];
-    }
 
-    let u_pointsize = 0.1 + 100 / Math.sqrt(N);
-    let u_projection = mat4.create();
-    mat4.scale(u_projection, u_projection, [1, 1, 0.5, 1]); // avoid clipping
-    mat4.rotate(u_projection, u_projection, -rotation, [0.1, 1, 0]);
-    mat4.rotate(u_projection, u_projection, -Math.PI/2+0.2, [1, 0, 0]);
-    
-    if (drawMode === 'delaunay') {
-        let triangleGeometry = generateDelaunayGeometry(r_xyz, r_color_fn, mesh);
-        renderTriangles({
-            u_projection,
-            a_xyz: triangleGeometry.geometry,
-            a_rgb: triangleGeometry.colors,
-            count: triangleGeometry.geometry.length / 3,
-        });
-    } else if (drawMode === 'voronoi' || drawMode === 'centroid') {
-        let triangleGeometry = generateVoronoiGeometry(mesh, r_xyz, t_xyz, r_color_fn);
-        renderTriangles({
-            u_projection,
-            a_xyz: triangleGeometry.geometry,
-            a_rgb: triangleGeometry.colors,
-            count: triangleGeometry.geometry.length / 3,
-        });
-    }
-
+function drawPlateVectors(u_projection, mesh, {r_xyz, r_plate, plate_vec}) {
     let line_xyz = [], line_rgba = [];
     
     for (let r = 0; r < mesh.numRegions; r++) {
@@ -508,8 +658,10 @@ function draw() {
         a_rgba: line_rgba,
         count: line_xyz.length,
     });
+}
 
-    line_xyz = []; line_rgba = [];
+function drawPlateBoundaries(u_projection, mesh, {t_xyz, r_plate}) {
+    let line_xyz = [], line_rgba = [];
     for (let s = 0; s < mesh.numSides; s++) {
         let begin_r = mesh.s_begin_r(s),
             end_r = mesh.s_end_r(s);
@@ -529,11 +681,50 @@ function draw() {
         a_rgba: line_rgba,
         count: line_xyz.length,
     });
-                          
+}
+
+
+function draw() {
+    let u_pointsize = 0.1 + 100 / Math.sqrt(N);
+    let u_projection = mat4.create();
+    mat4.scale(u_projection, u_projection, [1, 1, 0.5, 1]); // avoid clipping
+    mat4.rotate(u_projection, u_projection, -rotation, [0.1, 1, 0]);
+    mat4.rotate(u_projection, u_projection, -Math.PI/2+0.2, [1, 0, 0]);
+
+    function r_color_fn(r) {
+        let m = map.r_moisture[r];
+        let e = map.r_elevation[r];
+        return [e, m];
+    }
+
+    if (drawMode === 'centroid') {
+        let triangleGeometry = generateVoronoiGeometry(mesh, map, r_color_fn);
+        renderTriangles({
+            u_projection,
+            a_xyz: triangleGeometry.xyz,
+            a_tm: triangleGeometry.tm,
+            count: triangleGeometry.xyz.length / 3,
+        });
+    } else if (drawMode === 'quads') {
+        renderIndexedTriangles({
+            u_projection,
+            a_xyz: quadGeometry.xyz,
+            a_tm: quadGeometry.tm,
+            elements: quadGeometry.I,
+        });
+    }
+
+    if (draw_plateVectors) {
+        drawPlateVectors(u_projection, mesh, map);
+    }
+    if (draw_plateBoundaries) {
+        drawPlateBoundaries(u_projection, mesh, map);
+    }
+    
     renderPoints({
         u_projection,
         u_pointsize,
-        a_xyz: r_xyz,
+        a_xyz: map.r_xyz,
         count: mesh.numRegions,
     });
 }

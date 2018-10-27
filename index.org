@@ -12,19 +12,21 @@ For [[http://www.procjam.com/][ProcJam 2018]] I decided to learn how to generate
 #+begin_export html
    <p> 
       Draw:
-      <button onclick="setDrawMode('delaunay')">Delaunay</button>
-      <button onclick="setDrawMode('voronoi')">Voronoi</button>
-      <button onclick="setDrawMode('centroid')">Centroid</button>
+      <button onclick="setDrawMode('quads')">Quads</button>
+      <button onclick="setDrawMode('centroid')">Flat</button>
+      <br/>
+      <label><input type="checkbox" oninput="setDrawPlateVectors(this.checked)"/>Plate vectors</label>
+      <label><input type="checkbox" oninput="setDrawPlateBoundaries(this.checked)"/>Plate boundaries</label>
       <br/>
       Number of points on sphere:
-      <input type="range" min="1" max="5" step="0.001" value="3" oninput="setN(Math.pow(10, this.valueAsNumber) | 0)" style="width:50ex"/>
+      <input type="range" min="1" max="5" step="0.001" value="4" oninput="setN(Math.pow(10, this.valueAsNumber) | 0)" style="width:50ex"/>
       <br/>
       Number of plates:
-      <input type="range" min="1" max="500" value="20" oninput="setP(this.valueAsNumber)" style="width:50ex"/>
+      <input type="range" min="1" max="100" value="20" oninput="setP(this.valueAsNumber)" style="width:50ex"/>
       <br/>
-      Jitter: <input type="range" min="0" max="1" step="0.001" value="0" oninput="setJitter(this.valueAsNumber)" style="width:50ex"/>
+      Jitter: <input type="range" min="0" max="1" step="0.001" value="0.5" oninput="setJitter(this.valueAsNumber)" style="width:50ex"/>
       <br/>
-      Sphere rotation: <input type="range" min="-5" max="5" step="0.001" value="-4" oninput="setRotation(this.valueAsNumber)" style="width:50ex"/>
+      Sphere rotation: <input type="range" min="-5" max="5" step="0.001" value="-2" oninput="setRotation(this.valueAsNumber)" style="width:50ex"/>
     </p>
     
     <figure style="background: black">
