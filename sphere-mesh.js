@@ -10,28 +10,7 @@ const TriangleMesh = require('@redblobgames/dual-mesh');
 
 
 let _randomLat = [], _randomLon = [];
-function generateFibonacciSphere1(N, jitter) {
-    let a_latlong = [];
-
-    // First algorithm from http://web.archive.org/web/20120421191837/http://www.cgafaq.info/wiki/Evenly_distributed_points_on_sphere
-    const s = 3.6/Math.sqrt(N);
-    const dz = 2.0/N;
-    for (let k = 0, long = 0, z = 1 - dz/2; k !== N; k++, z -= dz) {
-        let r = Math.sqrt(1-z*z);
-        let latDeg = Math.asin(z) * 180 / Math.PI;
-        let lonDeg = long * 180 / Math.PI;
-        if (_randomLat[k] === undefined) _randomLat[k] = Math.random() - Math.random();
-        if (_randomLon[k] === undefined) _randomLon[k] = Math.random() - Math.random();
-        latDeg += jitter * _randomLat[k] * (latDeg - Math.asin(Math.max(-1, z - dz * 2 * Math.PI * r / s)) * 180 / Math.PI);
-        lonDeg += jitter * _randomLon[k] * (s/r * 180 / Math.PI);
-        a_latlong.push(latDeg, lonDeg % 360.0);
-        long += s/r;
-    }
-    return a_latlong;
-}
-
-
-function generateFibonacciSphere2(N, jitter) {
+function generateFibonacciSphere(N, jitter) {
     let a_latlong = [];
 
     // Second algorithm from http://web.archive.org/web/20120421191837/http://www.cgafaq.info/wiki/Evenly_distributed_points_on_sphere
@@ -142,9 +121,8 @@ function stereographicProjection(r_xyz) {
 }
 
 
-function makeSphere(algorithm, N, jitter) {
-    let generate = algorithm === 1? generateFibonacciSphere1 : generateFibonacciSphere2;
-    let latlong = generate(N, jitter);
+function makeSphere(N, jitter) {
+    let latlong = generateFibonacciSphere(N, jitter);
     let r_xyz = [];
     for (let r = 0; r < latlong.length/2; r++) {
         pushCartesianFromSpherical(r_xyz, latlong[2*r], latlong[2*r+1]);

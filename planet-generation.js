@@ -26,12 +26,26 @@ const u_colormap = regl.texture({
     wrapT: 'clamp'
 });
 
+
+/* UI parameters */
+let N = 10000;
+let P = 20;
+let jitter = 0.5;
+let rotation = -1.5;
+let drawMode = 'centroid';
+
+window.setN = newN => { N = newN; generateMesh(); };
+window.setP = newP => { P = newP; generateMap(); };
+window.setJitter = newJitter => { jitter = newJitter; generateMesh(); };
+window.setRotation = newRotation => { rotation = newRotation; draw(); };
+window.setDrawMode = newMode => { drawMode = newMode; draw(); };
+
+
 const renderPoints = regl({
     frag: `
 precision mediump float;
-varying vec3 v_rgb;
 void main() {
-   gl_FragColor = vec4(v_rgb, 1);
+   gl_FragColor = vec4(0, 0, 0, 1);
 }
 `,
 
@@ -39,11 +53,8 @@ void main() {
 precision mediump float;
 uniform mat4 u_projection;
 uniform float u_pointsize;
-uniform float u_brightness;
 attribute vec3 a_xyz;
-varying vec3 v_rgb;
 void main() {
-  v_rgb = (a_xyz + 1.0) / 2.0 * vec3(1.0, 0.8, 0.9) * u_brightness;
   gl_Position = u_projection * vec4(a_xyz, 1);
   gl_PointSize = gl_Position.z > 0.0? 0.0 : u_pointsize;
 }
@@ -56,7 +67,6 @@ void main() {
     uniforms: {
         u_projection: regl.prop('u_projection'),
         u_pointsize: regl.prop('u_pointsize'),
-        u_brightness: regl.prop('u_brightness'),
     },
 
     primitive: 'points',
@@ -270,20 +280,6 @@ function pickRandomRegions(mesh, N, randInt) {
 }
 
 
-let algorithm = 2;
-let N = 10000;
-let P = 20;
-let jitter = 0.5;
-let rotation = -1.5;
-let drawMode = 'centroid';
-
-window.setAlgorithm = newAlgorithm => { algorithm = newAlgorithm; generate(); };
-window.setN = newN => { N = newN; generate(); };
-window.setP = newP => { P = newP; generate(); };
-window.setJitter = newJitter => { jitter = newJitter; generate(); };
-window.setRotation = newRotation => { rotation = newRotation; draw(); };
-window.setDrawMode = newMode => { drawMode = newMode; draw(); };
-
 function generatePlates(mesh, r_xyz) {
     let r_plate = new Int32Array(mesh.numRegions);
     r_plate.fill(-1);
@@ -434,16 +430,20 @@ function assignElevation(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
 
 var mesh, r_xyz, t_xyz, plate_r, r_plate, plate_vec, plate_is_ocean, r_elevation;
 
-function generate() {
-    let result = SphereMesh.makeSphere(algorithm, N, jitter);
+function generateMesh() {
+    let result = SphereMesh.makeSphere(N, jitter);
     mesh = result.mesh;
     r_xyz = result.r_xyz;
     t_xyz = generateTriangleCenters(
         mesh, r_xyz,
         drawMode === 'centroid'? pushCentroidOfTriangle : pushCircumcenterOfTriangle
     );
-                                        
-    result = generatePlates(mesh, r_xyz);
+
+    generateMap();
+}
+
+function generateMap() {
+    let result = generatePlates(mesh, r_xyz);
     plate_r = result.plate_r;
     r_plate = result.r_plate;
     plate_vec = result.plate_vec;
@@ -460,14 +460,13 @@ function generate() {
 
 function draw() {
     function r_color_fn(r) {
-        // return [plate_is_ocean.has(r_plate[r])? 0.25 : 0.6, 0, 0];
         let color = randomColor(r_plate[r], r_xyz);
         let e = r_elevation[r] - 0.2;
         if (e > 0) e = e * e;
         return [0.5 + 0.5 * e + 0.1 * (color[0] - 0.5), color[1], 1];
     }
 
-    let u_pointsize = (drawMode === 'points'? 5 : 1) * (0.1 + 100 / Math.sqrt(N));
+    let u_pointsize = 0.1 + 100 / Math.sqrt(N);
     let u_projection = mat4.create();
     mat4.scale(u_projection, u_projection, [1, 1, 0.5, 1]); // avoid clipping
     mat4.rotate(u_projection, u_projection, -rotation, [0.1, 1, 0]);
@@ -534,10 +533,9 @@ function draw() {
     renderPoints({
         u_projection,
         u_pointsize,
-        u_brightness: drawMode === 'points'? 1.0 : 0.0,
         a_xyz: r_xyz,
         count: mesh.numRegions,
     });
 }
 
-generate();
+generateMesh();
