@@ -101,7 +101,7 @@ attribute vec4 a_rgba;
 varying vec4 v_rgba;
 void main() {
   vec4 pos = u_projection * vec4(a_xyz, 1);
-  v_rgba = pos.z > 0.0? vec4(0, 0, 0, 0) : a_rgba;
+  v_rgba = (-2.0 * pos.z) * a_rgba;
   gl_Position = pos;
 }
 `,
@@ -118,7 +118,7 @@ void main() {
 
     blend: {
         enable: true,
-        func: {src:'one', dst:'one minus src alpha'},
+        func: {src: 'one', dst: 'one minus src alpha'},
         equation: {
             rgb: 'add',
             alpha: 'add'
@@ -589,6 +589,8 @@ function assignFlow(mesh, {order_t, t_elevation, t_moisture, t_downflow_s, /* ou
 }
 
 
+
+
 /**********************************************************************
  * Main
  */
@@ -625,6 +627,7 @@ function generateMap() {
     for (let r of map.plate_r) {
         if (makeRandInt(r)(10) < 5) {
             map.plate_is_ocean.add(r);
+            // TODO: either make tiny plates non-ocean, or make sure tiny plates don't create seeds for rivers
         }
     }
     assignRegionElevation(mesh, map);
@@ -685,6 +688,30 @@ function drawPlateBoundaries(u_projection, mesh, {t_xyz, r_plate}) {
     });
 }
 
+function drawRivers(u_projection, mesh, {t_xyz, s_flow}) {
+    let line_xyz = [], line_rgba = [];
+
+    for (let s = 0; s < mesh.numSides; s++) {
+        if (s_flow[s] > 1) {
+            let flow = 0.1 * Math.sqrt(s_flow[s]);
+            let inner_t = mesh.s_inner_t(s),
+                outer_t = mesh.s_outer_t(s);
+            line_xyz.push(t_xyz.slice(3 * inner_t, 3 * inner_t + 3),
+                          t_xyz.slice(3 * outer_t, 3 * outer_t + 3));
+            if (flow > 1) flow = 1;
+            let rgba_premultiplied = [0.2 * flow, 0.5 * flow, 0.7 * flow, flow];
+            line_rgba.push(rgba_premultiplied, rgba_premultiplied);
+        }
+    }
+    renderLines({
+        u_projection,
+        u_multiply_rgba: [1, 1, 1, 1],
+        u_add_rgba: [0, 0, 0, 0],
+        a_xyz: line_xyz,
+        a_rgba: line_rgba,
+        count: line_xyz.length,
+    });
+}
 
 function draw() {
     let u_pointsize = 0.1 + 100 / Math.sqrt(N);
@@ -716,6 +743,8 @@ function draw() {
         });
     }
 
+    drawRivers(u_projection, mesh, map);
+    
     if (draw_plateVectors) {
         drawPlateVectors(u_projection, mesh, map);
     }
