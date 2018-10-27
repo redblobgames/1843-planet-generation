@@ -31,7 +31,7 @@ const u_colormap = regl.texture({
 
 
 /* UI parameters */
-let N = 10000;
+let N = 100000;
 let P = 20;
 let jitter = 0.5;
 let rotation = -1;
@@ -178,7 +178,7 @@ precision mediump float;
 
 uniform sampler2D u_colormap;
 uniform vec2 u_light_angle;
-uniform float u_inverse_texture_size, u_slope, u_flat, u_c, u_d;
+uniform float u_inverse_texture_size, u_slope, u_flat, u_c, u_d, u_outline_strength;
 
 varying vec2 v_tm;
 void main() {
@@ -188,8 +188,8 @@ void main() {
    vec3 slope_vector = normalize(vec3(dedy, dedx, u_d * 2.0 * u_inverse_texture_size));
    vec3 light_vector = normalize(vec3(u_light_angle, mix(u_slope, u_flat, slope_vector.z)));
    float light = u_c + max(0.0, dot(light_vector, slope_vector));
-
-   gl_FragColor = vec4(texture2D(u_colormap, vec2(e, v_tm.y)).rgb * light, 1);
+   float outline = 1.0 + u_outline_strength * max(dedx,dedy);
+   gl_FragColor = vec4(texture2D(u_colormap, vec2(e, v_tm.y)).rgb * light / outline, 1);
 }
 `,
 
@@ -212,8 +212,9 @@ void main() {
         u_inverse_texture_size: 1.0 / 2048,
         u_d: 60,
         u_c: 0.15,
-        u_slope: 2,
+        u_slope: 6,
         u_flat: 2.5,
+        u_outline_strength: 5,
     },
 
     elements: regl.prop('elements'),
@@ -231,7 +232,7 @@ let _randomNoise = new SimplexNoise(makeRandFloat(SEED));
 const persistence = 2/3;
 const amplitudes = Array.from({length: 5}, (_, octave) => Math.pow(persistence, octave));
 
-function UNUSED_fbm_noise(nx, ny, nz) {
+function fbm_noise(nx, ny, nz) {
     let sum = 0, sumOfAmplitudes = 0;
     for (let octave = 0; octave < amplitudes.length; octave++) {
         let frequency = 1 << octave;
@@ -499,6 +500,7 @@ function assignRegionElevation(mesh, {r_xyz, plate_is_ocean, r_plate, plate_vec,
         } else {
             r_elevation[r] = (1/a - 1/b) / (1/a + 1/b + 1/c);
         }
+        r_elevation[r] += 0.1 * fbm_noise(r_xyz[3*r], r_xyz[3*r+1], r_xyz[3*r+2]);
     }
 }
 
@@ -621,7 +623,7 @@ function generateMap() {
     map.plate_vec = result.plate_vec;
     map.plate_is_ocean = new Set();
     for (let r of map.plate_r) {
-        if (makeRandInt(r)(10) < 7) {
+        if (makeRandInt(r)(10) < 5) {
             map.plate_is_ocean.add(r);
         }
     }
@@ -721,12 +723,12 @@ function draw() {
         drawPlateBoundaries(u_projection, mesh, map);
     }
     
-    renderPoints({
-        u_projection,
-        u_pointsize,
-        a_xyz: map.r_xyz,
-        count: mesh.numRegions,
-    });
+    // renderPoints({
+    //     u_projection,
+    //     u_pointsize,
+    //     a_xyz: map.r_xyz,
+    //     count: mesh.numRegions,
+    // });
 }
 
 generateMesh();
