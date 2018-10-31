@@ -2,13 +2,15 @@
 # yarn lockfile v1
 
 
-"@redblobgames/dual-mesh@file:../../../../Projects/redblobgames/1735-dual-mesh":
+"@redblobgames/dual-mesh@https://github.com/redblobgames/dual-mesh":
   version "2.0.0"
+  resolved "https://github.com/redblobgames/dual-mesh#a0e9604c9b3e87117f1120d012b42cd923f8e62e"
   dependencies:
     delaunator "^3.0.0"
 
-"@redblobgames/prng@file:../../../../Projects/redblobgames/1742-prng":
+"@redblobgames/prng@https://github.com/redblobgames/prng":
   version "1.0.0"
+  resolved "https://github.com/redblobgames/prng#706927c7fef3284c34d4f5b3a422fbe5008e130e"
   dependencies:
     hash-int "*"
 
