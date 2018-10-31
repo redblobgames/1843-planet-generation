@@ -1,5 +1,6 @@
 #+title: Procedural map generation on a sphere
-#+date: <2018-10-21>
+#+date: <2018-10-22>
+#+macro: img @@html:<a href="https://www.redblobgames.com/x/1843-planet-generation/blog/$1.png"><img src="https://www.redblobgames.com/x/1843-planet-generation/blog/$1-small.jpg"/></a>@@
 
 #+begin_export html
   <style>
@@ -7,8 +8,211 @@
   </style>
 #+end_export
   
-For [[http://www.procjam.com/][ProcJam 2018]] I decided to learn how to generate maps on a sphere, so that I could procedurally generate planets. See [[../1842-delaunay-voronoi-sphere/][part 1]], where I place points on a sphere, work with sphere geometry, build a Delaunay triangulation on a sphere, and build Voronoi regions on a sphere.
-  
+[[http://www.procjam.com/][ProcJam 2018]] inspired me to learn how to generate maps on a sphere. The opening weekend of ProcJam, I spent 11 hours on geometry, and wrote it up [[../1842-delaunay-voronoi-sphere/][in a blog post]]: 
+
+- place points on a sphere
+- work with sphere geometry
+- build a Delaunay triangulation on a sphere
+- build Voronoi regions on a sphere
+
+After the weekend was over, I wasn't able to spend as much time the rest of the week on this, and spent only 12 hours over the next 8 days working on:
+
+- assign elevation on the sphere
+- assign moisture/rainfall on the sphere
+- assign temperature on the sphere
+- create rivers on the sphere
+- render mountains, valleys, oceans, rivers on the sphere
+
+In my projects I either limit my scope or limit my time. The big writeups (A*, Hexagons, etc.) are usually based on some scope. This on the other hand was a one-week experiment (=/x/= in the URL). I wanted to learn as much as I could during one week. I learned a lot, and there's /plenty/ more to do, so maybe I'll tackle more another time.
+
+** Jitter   
+   :PROPERTIES:
+   :CUSTOM_ID: jitter
+   :END:
+   
+In [[../1842-delaunay-voronoi-sphere/][part 1]] I spent some time picking /evenly distributed/ points on a sphere. Once I started working on the maps, the first thing I noticed is that all the time I spent finding evenly distributed points was wasted. Evenly distributed points look boring!
+
+{{{img(voronoi)}}}
+
+I ended up adding random jitter to the points to make them look interesting.
+
+{{{img(jitter)}}}
+
+** Noise heightmap
+   :PROPERTIES:
+   :CUSTOM_ID: noise-heightmap
+   :END:
+
+[[https://www.redblobgames.com/maps/terrain-from-noise/][I often start with noise for heightmaps]]. In this case, 3D Simplex Noise gives me an elevation for every point on the sphere. It was reasonable but it didn't look interesting to me.
+
+{{{img(planet-500k-voronoi)}}}
+
+I decided to look for alternatives.
+
+** Tectonic plates
+   :PROPERTIES:
+   :CUSTOM_ID: tectonic-plates
+   :END:
+
+I decided to follow the approach of Andy Gainey and others (see [[#more][references]] at the end) and build some tectonic plates. As this was a quick experiment, I wanted to find the /simplest thing that could possibly work/.
+
+First, pick random tectonic plate locations. I have =numRegions= Voronoi regions, and picked random regions until I had =N= of them. Through experimentation I found that setting =N= between 10 and 50 seemed reasonable.
+
+#+begin_src js
+let chosen_r = new Set();
+while (chosen_r.size < N) {
+    chosen_r.add(randInt(numRegions));
+}
+#+end_src
+
+Once I had these plates, I ran /flood fill/ (breadth first search) from them to assign each Voronoi region to a plate:
+
+{{{img(continent-boundaries)}}}
+
+The boundaries were a bit smooth so I changed this to a /random fill/ algorithm. It's similar to breadth first search but instead of picking the first element (breadth first search) or last element (depth first search), I pick a random element to expand. This code probably won't make sense out of context but this will give you an idea of how much code is needed to assign the tectonic plates with a random fill:
+
+#+begin_src js
+// plate_r is a set of region ids representing plates
+let r_plate = new Int32Array(mesh.numRegions); // region->plate
+r_plate.fill(-1);
+let queue = Array.from(plate_r);
+for (let r of queue) { r_plate[r] = r; }
+let out_r = [];
+const randInt = makeRandInt(SEED);
+for (let queue_out = 0; queue_out < mesh.numRegions; queue_out++) {
+    let pos = queue_out + randInt(queue.length - queue_out);
+    let current_r = queue[pos];
+    queue[pos] = queue[queue_out]; // random swap of queue elements
+    mesh.r_circulate_r(out_r, current_r); // neighboring regions
+    for (let neighbor_r of out_r) {
+        if (r_plate[neighbor_r] === -1) {
+            r_plate[neighbor_r] = r_plate[current_r];
+            queue.push(neighbor_r);
+        }
+    }
+}
+#+end_src
+
+The random fill made the boundaries a little better:
+
+{{{img(continent-boundaries-random)}}}
+
+Once I had some tectonic plates, I randomly assigned elevation+moisture to each one:
+
+{{{img(continent-boundaries-2)}}}
+
+With more regions and more plates it still looks reasonable:
+
+{{{img(continent-boundaries-3)}}}
+
+** Plate movement
+   :PROPERTIES:
+   :CUSTOM_ID: plate-movement
+   :END:
+   
+The next step was to assign elevation within a plate. I assigned random /direction vectors/ to each tectonic plate. This is simpler than what other people did, but I thought it'd be the simplest thing that would produce useful output.
+
+{{{img(continent-movement-vectors-1)}}}
+
+another example:
+
+{{{img(continent-movement-vectors-2)}}}
+
+Then along the boundaries of the plates, I compared the direction vectors. If the plate movement would cause the adjacent regions to move /closer/, then I applied a different rule than if they were /stationary/ or moving /apart/:
+
+| Boundary type | output-closer | output-farther |
+|---------------+---------------+----------------|
+| land + land   | mountain      | coastline      |
+| land + ocean  | mountain      | ocean          |
+| ocean + ocean | coastline     | ocean          |
+
+That assigned elevation to the boundary regions. For the interior of each plate, I interpolated using three distance fields, as I described on [[https://www.redblobgames.com/x/1728-elevation-control/][this blog post]] (2017).
+
+It didn't work so well:
+
+{{{img(continent-boundaries-4)}}}
+
+but with some tweaking it looked much better. Notice the mountains forming at plate boundaries:
+
+{{{img(continent-boundaries-5)}}}
+
+A further tweak helped some more: set the center of each plate to either ocean or coastline before calculating the distance field.
+
+/This needs more work/, as I'm still mildly unhappy with the results. Since this was a 1 week experiment, I decided I should work on other things, and come back to this if I had time.
+
+** Plate size
+   :PROPERTIES:
+   :CUSTOM_ID: plate-size
+   :END:
+   
+By varying the number of plates, I could have larger or smaller land masses:
+
+{{{img(planet-1)}}} 
+{{{img(planet-2)}}}
+{{{img(planet-3)}}} 
+{{{img(planet-4)}}}
+
+** Moisture
+   :PROPERTIES:
+   :CUSTOM_ID: moisture
+   :END:
+   
+A nice way to assign moisture/rainfall/humidity on a planet is to use [[https://mythcreants.com/blog/how-to-color-your-map-using-science/][atmospheric simulation]], but I had spent a lot more time than expected on elevation and was running out of time for other things, so I decided to do the /simplest thing that could possibly work/: I assigned random moisture to each continental plate.
+
+** Rendering elevation
+   :PROPERTIES:
+   :CUSTOM_ID: rendering-elevation
+   :END:
+
+For mapgen4 I have a nice renderer [[https://simblob.blogspot.com/2018/10/mapgen4-outlines.html][with outlines]] and [[https://simblob.blogspot.com/2018/09/mapgen4-oblique-projection.html][a custom projection]]. None of that worked on the sphere, so I had to go back to basics, including fighting bugs:
+
+{{{img(sphere-metallic-deathball)}}}
+
+I implemented something similar to what I described in [[https://www.redblobgames.com/x/1725-procedural-elevation/#rendering][this blog post]] but I don't like the way it renders mountains. It's something I need to revisit.
+
+{{{img(planet-5)}}}
+
+I don't think I would've attempted this without [[http://regl.party/][regl.js]], which wraps all the annoying parts of WebGL while leaving all low level details that matter (memory management, shaders, textures, etc.) to me.
+
+** Rivers
+   :PROPERTIES:
+   :CUSTOM_ID: rivers
+   :END:
+
+Rivers are usually the hardest part but I already had [[https://simblob.blogspot.com/2018/10/mapgen4-river-representation.html][river code for mapgen4]], and it worked on /graphs/ not grids. The sphere map is a graph and the river code didn't require any changes to work on spheres. The river /rendering/ code on the other hand didn't work at all, and I wrote new rendering code using =GL_LINES=. Unfortunately in WebGL you can't use different line widths, so my first version looked like this:
+
+{{{img(planet-6)}}}
+{{{img(planet-7)}}}
+
+What did work: I got more rivers in wet areas than in dry areas.
+
+Instead of line widths, I used alpha transparency to simulate narrower rivers:
+
+{{{img(planet-8)}}}
+
+There's a visual glitch where the rivers run into the oceans. I wanted to solve this properly, but as this was a quick experiment, I decided the simplest workaround would be to make the rivers the same color as shallow water, so where they flowed into the ocean, you wouldn't see the overdraw. I think it ended up looking pretty good. I only drew the bigger rivers here:
+
+{{{img(planet-9)}}}
+{{{img(planet-10)}}}
+
+and I drew many more rivers here:
+
+{{{img(planet-11)}}}
+{{{img(planet-12)}}}
+
+I'm pretty happy with the way rivers look!
+
+There's a small problem where a tiny "ocean" region can get rivers flowing into it. I considered filtering these out, but as this is a time-limited project, that didn't make the cut.
+
+Another useful trick to compensate for the behavior of =GL_LINES=: on the sides of the planet, where you wouldn't see the rivers top-down, decrease transparency.
+
+** Demo
+   :PROPERTIES:
+   :CUSTOM_ID: demo
+   :END:
+   
+Time for an interactive demo! It may be slow when you increase the number of regions. Try switching from flat to quad drawing to get some shading.
+
 #+begin_export html
    <p> 
       Draw:
@@ -18,11 +222,11 @@ For [[http://www.procjam.com/][ProcJam 2018]] I decided to learn how to generate
       <label><input type="checkbox" oninput="setDrawPlateVectors(this.checked)"/>Plate vectors</label>
       <label><input type="checkbox" oninput="setDrawPlateBoundaries(this.checked)"/>Plate boundaries</label>
       <br/>
-      Number of points on sphere:
-      <input type="range" min="1" max="5" step="0.001" value="4" oninput="setN(Math.pow(10, this.valueAsNumber) | 0)" style="width:50ex"/>
+      Number of regions:
+      <input type="range" min="2" max="5" step="0.001" value="4" oninput="setN(Math.pow(10, this.valueAsNumber) | 0)" style="width:50ex"/>
       <br/>
       Number of plates:
-      <input type="range" min="1" max="100" value="20" oninput="setP(this.valueAsNumber)" style="width:50ex"/>
+      <input type="range" min="5" max="100" value="20" oninput="setP(this.valueAsNumber)" style="width:50ex"/>
       <br/>
       Jitter: <input type="range" min="0" max="1" step="0.001" value="0.5" oninput="setJitter(this.valueAsNumber)" style="width:50ex"/>
       <br/>
@@ -34,7 +238,12 @@ For [[http://www.procjam.com/][ProcJam 2018]] I decided to learn how to generate
     </figure>
 #+end_export
 
-Further reading for voronoi on a sphere:
+** More reading
+   :PROPERTIES:
+   :CUSTOM_ID: more
+   :END:
+   
+There's so much I didn't have time to implement. Mountains don't look right. Temperatures should decrease near the poles. The shading is too flat. There are no trees. Rivers should be drawn with variable width. Plate elevation interpolation doesn't always work right. When you increase the number of plates, it seems to produce too many oceans. Lots and lots of things to improve, but I don't want to keep working on it right now. I learned a lot and it was fun to play with but it's time to get back to my main project, [[https://www.redblobgames.com/maps/mapgen4/][mapgen4]].
 
 Further reading for plate tectonics:
 
@@ -42,6 +251,7 @@ Further reading for plate tectonics:
 - http://experilous.com/1/blog/post/procedural-planet-generation
 - https://squeakyspacebar.github.io/2017/07/12/Procedural-Map-Generation-With-Voronoi-Diagrams.html
 - http://eveliosdev.blogspot.com/2016/06/plate-tectonics.html
+- https://leatherbee.org/index.php/2018/10/28/terrain-generation-4-plates-continents-coasts/
 - https://github.com/davidson16807/tectonics.js/tree/master/research and demo http://davidson16807.github.io/tectonics.js/ 
 - http://jeheydorn.github.io/nortantis/
 
@@ -49,8 +259,8 @@ Further reading for plate tectonics:
   <x:footer>
     <script src="build/_bundle.js"/>
     
-    Created 21 Oct 2018; &#160;
-    <!-- hhmts start -->Last modified: 26 Oct 2018<!-- hhmts end -->
+    Created 22 Oct 2018; &#160;
+    <!-- hhmts start -->Last modified: 31 Oct 2018<!-- hhmts end -->
   </x:footer>
 
 #+end_export

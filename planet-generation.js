@@ -31,11 +31,11 @@ const u_colormap = regl.texture({
 
 
 /* UI parameters */
-let N = 100000;
+let N = 10000;
 let P = 20;
-let jitter = 0.5;
+let jitter = 0.75;
 let rotation = -1;
-let drawMode = 'quads';
+let drawMode = 'centroid';
 let draw_plateVectors = false;
 let draw_plateBoundaries = false;
 
