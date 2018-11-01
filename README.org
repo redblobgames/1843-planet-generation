@@ -1,0 +1,17 @@
+[[http://unmaintained.tech/badge.svg]]
+
+This was a 9 day (2.5hr/day) experiment to learn how to procedurally generate maps on a sphere. I hadn't worked with this type of sphere geometry before and wanted to learn.
+
+** Geometry
+
+[[https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/][Writeup]] - Fibonacci points, Delaunay triangles, Voronoi regions
+
+[[https://www.redblobgames.com/x/1842-delaunay-voronoi-sphere/blog/fibonacci-sphere-voronoi.png]]
+
+** Maps
+
+[[https://www.redblobgames.com/x/1843-planet-generation/][Writeup]] - tectonic plates, mountains, oceans, biomes, rivers, rendering
+
+[[https://www.redblobgames.com/x/1843-planet-generation/blog/continent-boundaries-5-small.jpg]]
+
+[[https://www.redblobgames.com/x/1843-planet-generation/blog/planet-12-small.jpg]]

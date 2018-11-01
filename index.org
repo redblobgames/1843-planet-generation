@@ -152,16 +152,16 @@ By varying the number of plates, I could have larger or smaller land masses:
 {{{img(planet-3)}}} 
 {{{img(planet-4)}}}
 
-** Moisture
+** Biomes
    :PROPERTIES:
-   :CUSTOM_ID: moisture
+   :CUSTOM_ID: biomes
    :END:
    
-A nice way to assign moisture/rainfall/humidity on a planet is to use [[https://mythcreants.com/blog/how-to-color-your-map-using-science/][atmospheric simulation]], but I had spent a lot more time than expected on elevation and was running out of time for other things, so I decided to do the /simplest thing that could possibly work/: I assigned random moisture to each continental plate.
+A nice way to assign moisture/rainfall/humidity on a planet is to use [[https://mythcreants.com/blog/how-to-color-your-map-using-science/][atmospheric simulation]], but I had spent a lot more time than expected on elevation and was running out of time for other things, so I decided to do the /simplest thing that could possibly work/: I assigned random moisture to each continental plate, and used that to look up biomes.
 
-** Rendering elevation
+** Rendering
    :PROPERTIES:
-   :CUSTOM_ID: rendering-elevation
+   :CUSTOM_ID: rendering
    :END:
 
 For mapgen4 I have a nice renderer [[https://simblob.blogspot.com/2018/10/mapgen4-outlines.html][with outlines]] and [[https://simblob.blogspot.com/2018/09/mapgen4-oblique-projection.html][a custom projection]]. None of that worked on the sphere, so I had to go back to basics, including fighting bugs:
@@ -245,6 +245,8 @@ Time for an interactive demo! It may be slow when you increase the number of reg
    
 There's so much I didn't have time to implement. Mountains don't look right. Temperatures should decrease near the poles. The shading is too flat. There are no trees. Rivers should be drawn with variable width. Plate elevation interpolation doesn't always work right. When you increase the number of plates, it seems to produce too many oceans. Lots and lots of things to improve, but I don't want to keep working on it right now. I learned a lot and it was fun to play with but it's time to get back to my main project, [[https://www.redblobgames.com/maps/mapgen4/][mapgen4]].
 
+[[https://github.com/redblobgames/1843-planet-generation][I put the messy code up on github]].
+
 Further reading for plate tectonics:
 
 - https://imgur.com/a/Cb5ri
@@ -260,7 +262,7 @@ Further reading for plate tectonics:
     <script src="build/_bundle.js"/>
     
     Created 22 Oct 2018; &#160;
-    <!-- hhmts start -->Last modified: 31 Oct 2018<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 01 Nov 2018<!-- hhmts end -->
   </x:footer>
 
 #+end_export
