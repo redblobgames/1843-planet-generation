@@ -11,7 +11,7 @@ const SEED = 123;
 
 const SimplexNoise = require('simplex-noise');
 const FlatQueue = require('flatqueue');
-const colormap = require('../../maps/mapgen4/colormap');
+const colormap = require('./colormap');
 const {vec3, mat4} = require('gl-matrix');
 const {makeRandInt, makeRandFloat} = require('@redblobgames/prng');
 const SphereMesh = require('./sphere-mesh');
