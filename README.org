@@ -15,3 +15,25 @@ This was a 9 day (2.5hr/day) experiment to learn how to procedurally generate ma
 [[https://www.redblobgames.com/x/1843-planet-generation/blog/continent-boundaries-5-small.jpg]]
 
 [[https://www.redblobgames.com/x/1843-planet-generation/blog/planet-12-small.jpg]]
+
+** Installation
+
+To run in devel mode:
+
+#+begin_src sh
+yarn global add browserify watchify budo
+yarn install
+make
+#+end_src
+
+Then visit the budo url (probably [[http://localhost:9966/embed.html]]).
+
+Alernatively, if you use npm instead of yarn:
+
+#+begin_src sh
+npm -g install browserify watchify budo
+npm install
+make
+#+end_src
+
+In production mode, run ~yarn run build~ and visit embed.html .

@@ -18,6 +18,6 @@
     },
     "scripts": {
         "build": "browserify planet-generation.js -o build/_bundle.js",
-        "watch": "budo planet-generation.js:build/_bundle.js --dir . --dir ../../ --live --onupdate 'npm run build'"
+        "watch": "budo planet-generation.js:build/_bundle.js --dir . --dir ../../ --live --onupdate 'yarn run build'"
     }
 }
