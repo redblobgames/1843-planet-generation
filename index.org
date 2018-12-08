@@ -224,7 +224,7 @@ There's so much I didn't have time to implement. Mountains don't look right. Tem
 
 [[https://github.com/redblobgames/1843-planet-generation][I put the messy code up on github]].
 
-Further reading for plate tectonics:
+Further reading for plate tectonics and region partitioning systems:
 
 - https://imgur.com/a/Cb5ri
 - http://experilous.com/1/blog/post/procedural-planet-generation
@@ -233,10 +233,21 @@ Further reading for plate tectonics:
 - https://leatherbee.org/index.php/2018/10/28/terrain-generation-4-plates-continents-coasts/
 - https://github.com/davidson16807/tectonics.js/tree/master/research and demo http://davidson16807.github.io/tectonics.js/ 
 - http://jeheydorn.github.io/nortantis/
+- http://blog.particracy.com/worlds-and-their-geography/
+- https://forhinhexes.blogspot.com/2018/04/tectonics-primer.html
+- http://www.entropicparticles.com/generation-of-fault-lines/
+
+Further reading for planetary climate:
+
+- http://jc.tech-galaxy.com/bricka/climate_cookbook.html
+- https://worldbuildingworkshop.com/2015/11/27/climate/
+- https://forhinhexes.blogspot.com/2018/06/i-couldnt-think-of-pun-about-potential.html
+- https://forhinhexes.blogspot.com/2018/06/rain-rain-go-away.html
+- [[https://www.youtube.com/watch?v=LifRswfCxFU&feature=youtu.be][wind patterns]] (video)
 
 #+begin_export html
   <x:footer>
     Created 22 Oct 2018; &#160;
-    <!-- hhmts start -->Last modified: 02 Nov 2018<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 23 Nov 2018<!-- hhmts end -->
   </x:footer>
 #+end_export
