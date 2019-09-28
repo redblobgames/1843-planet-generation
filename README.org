@@ -1,4 +1,4 @@
-[[http://unmaintained.tech/badge.svg]]
+[[http://unmaintained.tech/][http://unmaintained.tech/badge.svg]]
 
 This was a 9 day (2.5hr/day) experiment to learn how to procedurally generate maps on a sphere. I hadn't worked with this type of sphere geometry before and wanted to learn.
 

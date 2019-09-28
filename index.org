@@ -120,19 +120,27 @@ another example:
 
 Then along the boundaries of the plates, I compared the direction vectors. If the plate movement would cause the adjacent regions to move /closer/, then I applied a different rule than if they were /stationary/ or moving /apart/:
 
-| Boundary type | output-closer | output-farther |
+| Boundary type | distance decreased | distance increased |
 |---------------+---------------+----------------|
 | land + land   | mountain      | coastline      |
 | land + ocean  | mountain      | ocean          |
 | ocean + ocean | coastline     | ocean          |
 
-That assigned elevation to the boundary regions. For the interior of each plate, I interpolated using three distance fields, as I described on [[https://www.redblobgames.com/x/1728-elevation-control/][this blog post]] (2017).
+This assigns elevation to the boundary regions only. For the rest of the regions, I interpolated using three distance fields, as I described on [[https://www.redblobgames.com/x/1728-elevation-control/][this blog post]] (2017).
 
-It didn't work so well:
+It didn't work so well. I think the problem was that any /slight/ movement will trigger /full/ mountain growth, and that means every plate ends up with a land boundary:
 
 {{{img(continent-boundaries-4)}}}
 
-but with some tweaking it looked much better. Notice the mountains forming at plate boundaries:
+I tweaked the rules and ended up with a threshold for how the regions are pushing into each other before I trigger mountain growth:
+
+| Boundary type | Δdistance < -0.75 | otherwise  |
+|---------------+-------------------+------------|
+| land + land   | mountain          | do nothing |
+| land + ocean  | mountain          | coastline  |
+| ocean + ocean | coastline         | ocean      |
+
+(Note: the 0.75 is arbitrary, and I'd like to figure out what values work best.) It looks much better. Notice the mountains forming at plate boundaries:
 
 {{{img(continent-boundaries-5)}}}
 
@@ -248,6 +256,6 @@ Further reading for planetary climate:
 #+begin_export html
   <x:footer>
     Created 22 Oct 2018; &#160;
-    <!-- hhmts start -->Last modified: 23 Nov 2018<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 28 Sep 2019<!-- hhmts end -->
   </x:footer>
 #+end_export

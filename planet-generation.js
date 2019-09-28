@@ -430,31 +430,41 @@ function assignDistanceField(mesh, seeds_r, stop_r) {
  * the current plate vector. */
 const COLLISION_THRESHOLD = 0.75;
 function findCollisions(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
-    let epsilon = 1e-2;
+    const deltaTime = 1e-2; // simulate movement
     let {numRegions} = mesh;
     let mountain_r = new Set(),
         coastline_r = new Set(),
         ocean_r = new Set();
     let r_out = [];
+    /* For each region, I want to know how much it's being compressed
+       into an adjacent region. The "compression" is the change in
+       distance as the two regions move. I'm looking for the adjacent
+       region from a different plate that pushes most into this one*/
     for (let current_r = 0; current_r < numRegions; current_r++) {
-        let bestCollision = Infinity, best_r = -1;
+        let bestCompression = Infinity, best_r = -1;
         mesh.r_circulate_r(r_out, current_r);
         for (let neighbor_r of r_out) {
             if (r_plate[current_r] !== r_plate[neighbor_r]) {
+                /* sometimes I regret storing xyz in a compact array... */
                 let current_pos = r_xyz.slice(3 * current_r, 3 * current_r + 3),
                     neighbor_pos = r_xyz.slice(3 * neighbor_r, 3 * neighbor_r + 3);
+                /* simulate movement for deltaTime seconds */
                 let distanceBefore = vec3.distance(current_pos, neighbor_pos),
-                    distanceAfter = vec3.distance(vec3.add([], current_pos, vec3.scale([], plate_vec[r_plate[current_r]], epsilon)),
-                                                  vec3.add([], neighbor_pos, vec3.scale([], plate_vec[r_plate[neighbor_r]], epsilon)));
-                let collision = distanceBefore - distanceAfter;
-                if (collision < bestCollision) {
+                    distanceAfter = vec3.distance(vec3.add([], current_pos, vec3.scale([], plate_vec[r_plate[current_r]], deltaTime)),
+                                                  vec3.add([], neighbor_pos, vec3.scale([], plate_vec[r_plate[neighbor_r]], deltaTime)));
+                /* how much closer did these regions get to each other? */
+                let compression = distanceBefore - distanceAfter;
+                /* keep track of the adjacent region that gets closest */
+                if (compression < bestCompression) {
                     best_r = neighbor_r;
-                    bestCollision = collision;
+                    bestCompression = compression;
                 }
             }
         }
         if (best_r !== -1) {
-            let collided = bestCollision > COLLISION_THRESHOLD * epsilon;
+            /* at this point, bestCompression tells us how much closer
+               we are getting to the region that's pushing into us the most */
+            let collided = bestCompression > COLLISION_THRESHOLD * deltaTime;
             if (plate_is_ocean.has(current_r) && plate_is_ocean.has(best_r)) {
                 (collided? coastline_r : ocean_r).add(current_r);
             } else if (!plate_is_ocean.has(current_r) && !plate_is_ocean.has(best_r)) {
