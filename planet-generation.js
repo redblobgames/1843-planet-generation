@@ -738,7 +738,8 @@ function drawRivers(u_projection, mesh, {t_xyz, s_flow}) {
     });
 }
 
-function draw() {
+let _draw_pending = false;
+function _draw() {
     let u_pointsize = 0.1 + 100 / Math.sqrt(N);
     let u_projection = mat4.create();
     mat4.scale(u_projection, u_projection, [1, 1, 0.5, 1]); // avoid clipping
@@ -783,6 +784,14 @@ function draw() {
     //     a_xyz: map.r_xyz,
     //     count: mesh.numRegions,
     // });
+    _draw_pending = false;
+}
+
+function draw() {
+    if (!_draw_pending) {
+        _draw_pending = true;
+        requestAnimationFrame(_draw);
+    }
 }
 
 generateMesh();
