@@ -365,7 +365,21 @@ function generatePlates(mesh, r_xyz) {
     for (let r of queue) { r_plate[r] = r; }
     let out_r = [];
     const randInt = makeRandInt(SEED);
-    for (let queue_out = 0; queue_out < mesh.numRegions; queue_out++) {
+
+    /* In Breadth First Search (BFS) the queue will be all elements in
+       queue[queue_out ... queue.length-1]. Pushing onto the queue
+       adds an element to the end, increasing queue.length. Popping
+       from the queue removes an element from the beginning by
+       increasing queue_out.
+
+       To add variety, use a random search instead of a breadth first
+       search. The frontier of elements to be expanded is still
+       queue[queue_out ... queue.length-1], but pick a random element
+       to pop instead of the earliest one. Do this by swapping
+       queue[pos] and queue[queue_out].
+    */
+    
+    for (let queue_out = 0; queue_out < queue.length; queue_out++) {
         let pos = queue_out + randInt(queue.length - queue_out);
         let current_r = queue[pos];
         queue[pos] = queue[queue_out];
@@ -404,9 +418,10 @@ function assignDistanceField(mesh, seeds_r, stop_r) {
         queue.push(r);
         r_distance[r] = 0;
     }
-    
+
+    /* Random search adapted from breadth first search */
     let out_r = [];
-    for (let queue_out = 0; queue_out < mesh.numRegions; queue_out++) {
+    for (let queue_out = 0; queue_out < queue.length; queue_out++) {
         let pos = queue_out + randInt(queue.length - queue_out);
         let current_r = queue[pos];
         queue[pos] = queue[queue_out];
