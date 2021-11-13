@@ -12,12 +12,5 @@
         "hash-int": "*",
         "regl": "*",
         "simplex-noise": "*"
-    },
-    "devDependencies": {
-        "@types/browserify": "*"
-    },
-    "scripts": {
-        "build": "browserify planet-generation.js -o build/_bundle.js",
-        "watch": "budo planet-generation.js:build/_bundle.js --dir . --dir ../../ --live --onupdate 'yarn run build'"
     }
 }

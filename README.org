@@ -18,22 +18,5 @@ This was a 9 day (2.5hr/day) experiment to learn how to procedurally generate ma
 
 ** Installation
 
-To run in devel mode:
-
-#+begin_src sh
-yarn global add browserify watchify budo
-yarn install
-yarn watch
-#+end_src
-
-Then visit the budo url (probably [[http://localhost:9966/embed.html]]).
-
-Alernatively, if you use npm instead of yarn:
-
-#+begin_src sh
-npm -g install browserify watchify budo
-npm install
-npm run watch
-#+end_src
-
-In production mode, run ~yarn build~ or ~npm run build~ and visit embed.html .
+To build, run =./build.sh= . Then visit embed.html .
+]

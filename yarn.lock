@@ -14,26 +14,6 @@
   dependencies:
     hash-int "*"
 
-"@types/browserify@*":
-  version "12.0.36"
-  resolved "https://registry.yarnpkg.com/@types/browserify/-/browserify-12.0.36.tgz#a7b662550bd4102b38ba83ef4ad6db871ea91331"
-  integrity sha512-hYXvPod5upkYTC7auziOATFsu/0MGxozbzNI80sZV044JTF7UtstHeNOM52b+bg7/taZ3fheK7oeb+jpm4C0/w==
-  dependencies:
-    "@types/insert-module-globals" "*"
-    "@types/node" "*"
-
-"@types/insert-module-globals@*":
-  version "7.0.0"
-  resolved "https://registry.yarnpkg.com/@types/insert-module-globals/-/insert-module-globals-7.0.0.tgz#8d158de4a6384e8daa13b3d63eebab6d5f67777d"
-  integrity sha512-zudCJPwluh1VUDB6Gl/OQdRp+fYy3+47huJB/JMQubMS2p+sH18MCVK4WUz3FqaWLB12yh5ELxVR/+tqwlm/qA==
-  dependencies:
-    "@types/node" "*"
-
-"@types/node@*":
-  version "10.12.0"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.0.tgz#ea6dcbddbc5b584c83f06c60e82736d8fbb0c235"
-  integrity sha512-3TUHC3jsBAB7qVRGxT6lWyYo2v96BMmD2PTcl47H25Lu7UXtFH/2qqmKiVrnel6Ne//0TFYf6uvNX+HW2FRkLQ==
-
 delaunator@^3.0, delaunator@^3.0.0:
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/delaunator/-/delaunator-3.0.2.tgz#62d5d9699cd64a736a2bb9c4d957d662452808d0"
