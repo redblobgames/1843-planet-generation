@@ -470,6 +470,7 @@ function findCollisions(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
                 /* how much closer did these regions get to each other? */
                 let compression = distanceBefore - distanceAfter;
                 /* keep track of the adjacent region that gets closest */
+                // TODO: shouldn't this be > ? need to re-tune all the parameters for the page after changing this
                 if (compression < bestCompression) {
                     best_r = neighbor_r;
                     bestCompression = compression;
@@ -480,10 +481,12 @@ function findCollisions(mesh, r_xyz, plate_is_ocean, r_plate, plate_vec) {
             /* at this point, bestCompression tells us how much closer
                we are getting to the region that's pushing into us the most */
             let collided = bestCompression > COLLISION_THRESHOLD * deltaTime;
-            if (plate_is_ocean.has(current_r) && plate_is_ocean.has(best_r)) {
+            let current_plate = r_plate[current_r],
+                best_plate = r_plate[best_r];
+            if (plate_is_ocean.has(current_plate) && plate_is_ocean.has(best_plate)) {
                 (collided? coastline_r : ocean_r).add(current_r);
-            } else if (!plate_is_ocean.has(current_r) && !plate_is_ocean.has(best_r)) {
-                if (collided) mountain_r.add(current_r);
+            } else if (!plate_is_ocean.has(current_plate) && !plate_is_ocean.has(best_plate)) {
+                if (collided) mountain_r.add(current_plate);
             } else {
                 (collided? mountain_r : coastline_r).add(current_r);
             }

@@ -148,6 +148,8 @@ A further tweak helped some more: set the center of each plate to either ocean o
 
 /This needs more work/, as I'm still mildly unhappy with the results. Since this was a 1 week experiment, I decided I should work on other things, and come back to this if I had time.
 
+*Update* [2022] It turns out my code for this is buggy, and that's probably why I had poor results. Unfortunately, the rest of the parameters in the generator are tuned based on the buggy code, so fixing this is not as easy as fixing the bugs.
+
 ** Plate size
    :PROPERTIES:
    :CUSTOM_ID: plate-size
@@ -256,6 +258,6 @@ Further reading for planetary climate:
 #+begin_export html
   <x:footer>
     Created 22 Oct 2018; &#160;
-    <!-- hhmts start -->Last modified: 28 Sep 2019<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 19 Apr 2022<!-- hhmts end -->
   </x:footer>
 #+end_export
