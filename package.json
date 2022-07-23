@@ -11,6 +11,6 @@
         "gl-matrix": "*",
         "hash-int": "*",
         "regl": "*",
-        "simplex-noise": "*"
+        "simplex-noise": "^2"
     }
 }
