@@ -8,7 +8,7 @@
   </style>
 #+end_export
   
-[[http://www.procjam.com/][ProcJam 2018]] inspired me to learn how to generate maps on a sphere. The opening weekend of ProcJam, I spent 11 hours on geometry, and wrote it up [[../1842-delaunay-voronoi-sphere/][in a blog post]]: 
+[[https://www.procjam.com/][ProcJam 2018]] inspired me to learn how to generate maps on a sphere. The opening weekend of ProcJam, I spent 11 hours on geometry, and wrote it up [[href:../1842-delaunay-voronoi-sphere/][in a blog post]]: 
 
 - place points on a sphere
 - work with sphere geometry
@@ -241,11 +241,11 @@ Further reading for plate tectonics and region partitioning systems:
 - https://squeakyspacebar.github.io/2017/07/12/Procedural-Map-Generation-With-Voronoi-Diagrams.html
 - http://eveliosdev.blogspot.com/2016/06/plate-tectonics.html
 - https://leatherbee.org/index.php/2018/10/28/terrain-generation-4-plates-continents-coasts/
-- https://github.com/davidson16807/tectonics.js/tree/master/research and demo http://davidson16807.github.io/tectonics.js/ 
+- https://github.com/davidson16807/tectonics.js/tree/5dbdb2e62e30097a2fa7df432164880554227c24/research and demo http://davidson16807.github.io/tectonics.js/
 - http://jeheydorn.github.io/nortantis/
 - http://blog.particracy.com/worlds-and-their-geography/
 - https://forhinhexes.blogspot.com/2018/04/tectonics-primer.html
-- http://www.entropicparticles.com/generation-of-fault-lines/
+- http://entropicparticles.com/generation-of-fault-lines/
 
 Further reading for planetary climate:
 
@@ -258,6 +258,6 @@ Further reading for planetary climate:
 #+begin_export html
   <x:footer>
     Created 22 Oct 2018; &#160;
-    <!-- hhmts start -->Last modified: 19 Apr 2022<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 15 Mar 2023<!-- hhmts end -->
   </x:footer>
 #+end_export
