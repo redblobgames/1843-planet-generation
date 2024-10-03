@@ -237,19 +237,19 @@ There's so much I didn't have time to implement. Mountains don't look right. Tem
 Further reading for plate tectonics and region partitioning systems:
 
 - https://imgur.com/a/Cb5ri
-- http://experilous.com/1/blog/post/procedural-planet-generation
+- https://web.archive.org/web/20220617041817/http://experilous.com/1/blog/post/procedural-planet-generation
 - https://squeakyspacebar.github.io/2017/07/12/Procedural-Map-Generation-With-Voronoi-Diagrams.html
 - http://eveliosdev.blogspot.com/2016/06/plate-tectonics.html
 - https://leatherbee.org/index.php/2018/10/28/terrain-generation-4-plates-continents-coasts/
 - https://github.com/davidson16807/tectonics.js/tree/5dbdb2e62e30097a2fa7df432164880554227c24/research and demo http://davidson16807.github.io/tectonics.js/
 - http://jeheydorn.github.io/nortantis/
-- http://blog.particracy.com/worlds-and-their-geography/
+- [[https://web.archive.org/web/20220707094343/http://blog.particracy.com/worlds-and-their-geography/]]
 - https://forhinhexes.blogspot.com/2018/04/tectonics-primer.html
 - http://entropicparticles.com/generation-of-fault-lines/
 
 Further reading for planetary climate:
 
-- http://jc.tech-galaxy.com/bricka/climate_cookbook.html
+- [[https://web.archive.org/web/20130619132254/http://jc.tech-galaxy.com/bricka/climate_cookbook.html]]
 - https://worldbuildingworkshop.com/2015/11/27/climate/
 - https://forhinhexes.blogspot.com/2018/06/i-couldnt-think-of-pun-about-potential.html
 - https://forhinhexes.blogspot.com/2018/06/rain-rain-go-away.html
@@ -258,6 +258,6 @@ Further reading for planetary climate:
 #+begin_export html
   <x:footer>
     Created 22 Oct 2018; &#160;
-    <!-- hhmts start -->Last modified: 15 Mar 2023<!-- hhmts end -->
+    <!-- hhmts start -->Last modified: 05 Sep 2024<!-- hhmts end -->
   </x:footer>
 #+end_export

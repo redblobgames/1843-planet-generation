@@ -19,4 +19,3 @@ This was a 9 day (2.5hr/day) experiment to learn how to procedurally generate ma
 ** Installation
 
 To build, run =./build.sh= . Then visit embed.html .
-]
