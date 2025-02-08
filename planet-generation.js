@@ -5,7 +5,6 @@
  *
  * Adapting mapgen4 code for a sphere. Quick & dirty, for procjam2018
  */
-'use strict';
 
 const SEED = 123;
 
@@ -242,41 +241,48 @@ function fbm_noise(nx, ny, nz) {
     return sum / sumOfAmplitudes;
 }
 
-/* Calculate the centroid and push it onto an array */
-function pushCentroidOfTriangle(out, ax, ay, az, bx, by, bz, cx, cy, cz) {
-    // TODO: renormalize to radius 1
-    out.push((ax+bx+cx)/3, (ay+by+cy)/3, (az+bz+cz)/3);
-}
-
-
 function generateTriangleCenters(mesh, {r_xyz}) {
     let {numTriangles} = mesh;
-    let t_xyz = [];
+    let t_xyz = new Float32Array(3 * numTriangles);
     for (let t = 0; t < numTriangles; t++) {
         let a = mesh.s_begin_r(3*t),
             b = mesh.s_begin_r(3*t+1),
             c = mesh.s_begin_r(3*t+2);
-        pushCentroidOfTriangle(t_xyz,
-                 r_xyz[3*a], r_xyz[3*a+1], r_xyz[3*a+2],
-                 r_xyz[3*b], r_xyz[3*b+1], r_xyz[3*b+2],
-                 r_xyz[3*c], r_xyz[3*c+1], r_xyz[3*c+2]);
+        // Calculate centroid
+        let ax = r_xyz[3*a], ay = r_xyz[3*a+1], az = r_xyz[3*a+2],
+            bx = r_xyz[3*b], by = r_xyz[3*b+1], bz = r_xyz[3*b+2],
+            cx = r_xyz[3*c], cy = r_xyz[3*c+1], cz = r_xyz[3*c+2];
+        t_xyz[3*t  ] = (ax+bx+cx)/3;
+        t_xyz[3*t+1] = (ay+by+cy)/3;
+        t_xyz[3*t+2] = (az+bz+cz)/3;
     }
     return t_xyz;
 }
 
 function generateVoronoiGeometry(mesh, {r_xyz, t_xyz}, r_color_fn) {
     const {numSides} = mesh;
-    let xyz = [], tm = [];
+    let xyz = new Float32Array(3 * 3 * numSides),
+        tm = new Float32Array(3 * 2 * numSides);
 
     for (let s = 0; s < numSides; s++) {
         let inner_t = mesh.s_inner_t(s),
             outer_t = mesh.s_outer_t(s),
             begin_r = mesh.s_begin_r(s);
         let rgb = r_color_fn(begin_r);
-        xyz.push(t_xyz[3*inner_t], t_xyz[3*inner_t+1], t_xyz[3*inner_t+2],
-                      t_xyz[3*outer_t], t_xyz[3*outer_t+1], t_xyz[3*outer_t+2],
-                      r_xyz[3*begin_r], r_xyz[3*begin_r+1], r_xyz[3*begin_r+2]);
-        tm.push(rgb, rgb, rgb);
+        for (let i = 0; i < 3; i++) {
+            xyz[9 * s + 0 + i] = t_xyz[3 * inner_t + i];
+        }
+        for (let i = 0; i < 3; i++) {
+            xyz[9 * s + 3 + i] = t_xyz[3 * outer_t + i];
+        }
+        for (let i = 0; i < 3; i++) {
+            xyz[9 * s + 6 + i] = r_xyz[3 * begin_r + i];
+        }
+        for (let j = 0; j < 3; j++) {
+            for (let i = 0; i < 2; i++) {
+                tm[6 * s + 2 * j + i] = rgb[i];
+            }
+        }
     }
     return {xyz, tm};
 }
@@ -632,8 +638,6 @@ function generateMesh() {
     mesh = result.mesh;
     quadGeometry.setMesh(mesh);
     
-    map.r_xyz = result.r_xyz;
-    map.t_xyz = generateTriangleCenters(mesh, map);
     map.r_elevation = new Float32Array(mesh.numRegions);
     map.t_elevation = new Float32Array(mesh.numTriangles);
     map.r_moisture = new Float32Array(mesh.numRegions);
@@ -643,6 +647,8 @@ function generateMesh() {
     map.t_flow = new Float32Array(mesh.numTriangles);
     map.s_flow = new Float32Array(mesh.numSides);
 
+    map.r_xyz = result.r_xyz;
+    map.t_xyz = generateTriangleCenters(mesh, map);
     generateMap();
 }
 
