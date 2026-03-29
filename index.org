@@ -1,5 +1,6 @@
 #+title: Procedural map generation on a sphere
 #+date: <2018-10-22>
+#+filetags: mapgen tectonic-plates
 #+macro: img @@html:<a href="https://www.redblobgames.com/x/1843-planet-generation/blog/$1.png"><img src="https://www.redblobgames.com/x/1843-planet-generation/blog/$1-small.jpg"/></a>@@
 
 #+begin_export html
@@ -234,15 +235,32 @@ There's so much I didn't have time to implement. Mountains don't look right. Tem
 
 [[https://github.com/redblobgames/1843-planet-generation][I put the messy code up on github]].
 
-Further reading for plate tectonics and region partitioning systems:
+Unorganized set of links:
 
-- https://imgur.com/a/Cb5ri
+- https://blogs.egu.eu/divisions/ts/2020/09/30/ts-must-read-papers-mckenzie-and-parker-1967/ - 1967 paper about mathematical modeling
+- https://worldbuildingpasta.blogspot.com/2020/01/an-apple-pie-from-scratch-part-va.html
+- https://mythcreants.com/blog/crafting-plausible-maps/ - overview, not about plates specifically
 - https://web.archive.org/web/20220617041817/http://experilous.com/1/blog/post/procedural-planet-generation
 - https://squeakyspacebar.github.io/2017/07/12/Procedural-Map-Generation-With-Voronoi-Diagrams.html
-- http://eveliosdev.blogspot.com/2016/06/plate-tectonics.html
+- https://eveliosdev.blogspot.com/2016/06/plate-tectonics.html
+- https://forum.outerra.com/index.php?topic=980.0
+- https://davidson16807.github.io/tectonics.js/ (library and demo); used to have a great set of papers to read https://github.com/davidson16807/tectonics.js/tree/master/research but that link is broken now; [[https://davidson16807.github.io/tectonics.js/blog/news.html][the blog has some good stuff]]
+- [[http://earthweb.ess.washington.edu/brown/downloads/ESS403/Triple_Junctions.pdf][plate movement geometry]] - "triple junctions"
+- [[https://www.reddit.com/r/proceduralgeneration/comments/85o9zt/video_guide_to_plate_tectonics/][plate tectonics for fantasy maps]] - video
+- https://www.reddit.com/r/worldbuilding/comments/4dicue/way_to_randomly_generate_continentsterrain/d1rasn0/ - continents using torn up sheet of paper
+- https://leatherbee.org/index.php/2018/10/06/terrain-generation-2-tectonic-plate-science/
 - https://leatherbee.org/index.php/2018/10/28/terrain-generation-4-plates-continents-coasts/
-- https://github.com/davidson16807/tectonics.js/tree/5dbdb2e62e30097a2fa7df432164880554227c24/research and demo http://davidson16807.github.io/tectonics.js/
-- http://jeheydorn.github.io/nortantis/
+- https://old.reddit.com/r/proceduralgeneration/comments/bstqbe/simulating_plate_tectonics_for_map_generation/ - cool animation, and description in comments
+- [[https://nickmcd.me/2020/12/03/clustered-convection-for-simulating-plate-tectonics/]] - voronoi + plate sinking & floating + collision + gpu implementation
+- https://old.reddit.com/r/proceduralgeneration/comments/ysa518/quite_pleased_with_how_my_tectonic_uplift_map_is/
+- https://second-system.de/2022/03/01/tectonics_1 - lists the types of plate boundaries and what they want to do at each; using delaunay/voronoi with 2500 triangles/1300 regions; move the seed points around, merge/split triangles
+- https://forhinhexes.blogspot.com/2018/04/tectonics-primer.html
+- https://www.youtube.com/watch?v=7xL0udlhnqI - uses plate tectonics on voronoi
+- https://old.reddit.com/r/proceduralgeneration/comments/dudauc/simulating_tectonic_plates_on_a_sphere_details_in/ - tectonic plates on a sphere, voronoi
+- https://old.reddit.com/r/proceduralgeneration/comments/10as9mo/realtime_planetary_tectonics_simulation/ - plate tectonics with supercontinents and voronoi
+- https://old.reddit.com/r/proceduralgeneration/comments/1pzs6ef/update_tectonic_plate_generation/
+
+- https://imgur.com/a/Cb5ri
 - [[https://web.archive.org/web/20220707094343/http://blog.particracy.com/worlds-and-their-geography/]]
 - https://forhinhexes.blogspot.com/2018/04/tectonics-primer.html
 - http://entropicparticles.com/generation-of-fault-lines/
